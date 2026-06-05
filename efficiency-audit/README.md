@@ -55,66 +55,17 @@ boilerplate) is filtered out during extraction.
 
 ## Troubleshooting
 
-### `hook_errors` showing `exit=127` / `/bin/sh: …/Library/Application: No such file`
+### `hook_errors` in the report
 
-If the audit reports hook errors like:
+The audit *detects* failing hooks but does not repair them. The most common is `exit=127`
+with stderr like `/bin/sh: …/Library/Application: No such file` — an unquoted
+`${CLAUDE_PLUGIN_ROOT}` in a plugin's `hooks.json` that breaks in agent-mode. To diagnose and
+fix this (across all installed plugins, with an explicit opt-in before editing shared plugin
+files), use the **[`hook-doctor`](../hook-doctor/)** skill.
 
-```
-[SessionStart:startup] exit=127 cmd=${CLAUDE_PLUGIN_ROOT}/scripts/on-session-start.sh
-  stderr: /bin/sh: /Users/<you>/Library/Application: No such file
-```
-
-the cause is an **unquoted `${CLAUDE_PLUGIN_ROOT}`** in a plugin's `hooks.json`.
-`${CLAUDE_PLUGIN_ROOT}` is set per-plugin to that plugin's directory. In normal Claude Code
-that path has no spaces, so an unquoted command happens to work. In **agent-mode (`sdk-ts`)
-sessions** the plugin is materialized under `~/Library/Application Support/Claude/…`, whose
-space makes `/bin/sh` split the path at `Application` — hence the `No such file` failure.
-
-**Fix:** quote the path token in the plugin's `hooks/hooks.json` so spaces survive. Quote the
-**path**, not the whole command:
-
-```jsonc
-// bad
-"command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-session-start.sh"
-"command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/log.py"
-// good
-"command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/on-session-start.sh\""
-"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/log.py\""
-```
-
-To find and fix every affected `hooks.json` under your plugin marketplace at once:
-
-```bash
-cd ~/.claude/plugins/marketplaces/<your-marketplace>
-python3 - <<'PY'
-import json, glob, re
-PAT = re.compile(r'(?<!")(\$\{CLAUDE_PLUGIN_ROOT\}[^\s"]*)')   # quote only the path token
-for path in glob.glob("*/hooks/hooks.json"):
-    raw = open(path).read(); new = raw
-    for c in {h.get("command","") for ev in json.loads(raw).get("hooks",{}).values()
-              for b in ev for h in b.get("hooks",[])}:
-        nc = PAT.sub(r'"\1"', c)
-        if nc != c:
-            new = new.replace(json.dumps(c), json.dumps(nc))
-    if new != raw:
-        json.loads(new)              # validate before writing
-        open(path, "w").write(new)
-        print("fixed", path)
-PY
-```
-
-Note: hook errors in the report are **historical** — they come from past transcripts and
-remain visible until they age out of the `--days` window. Re-run with a small `--days` after
-fixing (and after starting a fresh session) to confirm no *new* failures appear. Editing your
-local marketplace clone is also a working-tree change; push it upstream so it survives plugin
-updates.
-
-When you run the **skill** (rather than fixing by hand), it treats hook fixes as a separate,
-explicit decision because they edit files *outside* your project (a shared plugin clone under
-`~/.claude/plugins/marketplaces/…`). It will explain that the change is local-only and
-revertible by a plugin update, then ask you to choose: fix locally, prepare the upstream PR,
-both, or skip. It won't modify a shared plugin clone (or anything under `~/Library/Application
-Support/`) without that explicit choice. See Phase 4 in [`SKILL.md`](SKILL.md).
+Hook errors here are **historical** — they come from past transcripts and remain visible until
+they age out of the `--days` window. After fixing, re-run with a small `--days` (and a fresh
+session) to confirm no *new* failures appear.
 
 ## Tests
 
