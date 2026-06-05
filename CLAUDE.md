@@ -5,9 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repository is
 
 A collection of **Claude Code Skills**. Each skill is a self-contained directory that
-extends Claude's capabilities with specialized workflows. There is no build system, no
-dependency manifest, and no test runner — skills are authored as Markdown + supporting
-scripts and consumed directly by the Claude Code agent runtime.
+extends Claude's capabilities with specialized workflows. There is no build system or
+dependency manifest — skills are authored as Markdown + supporting scripts and consumed
+directly by the Claude Code agent runtime. Scripts that have tests use stdlib `unittest`
+(no third-party deps); run them from the script's directory, e.g.:
+
+```bash
+cd efficiency-audit/scripts && python3 -m unittest test_analyze_conversations
+```
 
 ## Skill anatomy
 
