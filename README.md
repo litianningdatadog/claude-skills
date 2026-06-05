@@ -12,6 +12,7 @@ skill does; this README is the entry point for humans browsing or installing the
 | Skill | What it does |
 |-------|--------------|
 | [`efficiency-audit`](efficiency-audit/) | Analyzes your recent Claude Code conversation transcripts to surface recurring friction (repeated corrections, re-explained context, failing hooks), then proposes and applies concrete fixes to `CLAUDE.md`, memory, and settings. |
+| [`hook-doctor`](hook-doctor/) | Inspects and repairs installed plugin hook configurations (`hooks.json`). Detects unquoted `${CLAUDE_PLUGIN_ROOT}` commands that fail in agent-mode, reports them, and applies safe idempotent fixes with explicit opt-in. |
 
 ## Installing a skill
 

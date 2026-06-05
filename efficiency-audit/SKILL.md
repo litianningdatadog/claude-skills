@@ -80,34 +80,13 @@ are stable (always true) vs. transient (task-specific)? Stable facts go in CLAUD
 `settings.json`? Use the `hookify:configure` skill for hook additions.
 
 **`hook_errors`** — Failing hooks reduce reliability silently. Each error includes hook
-name, failing command, and stderr. Diagnose and fix where possible.
-
-The most common cause is an **unquoted `${CLAUDE_PLUGIN_ROOT}`** in a plugin's `hooks.json`.
-Recognize this signature:
-
-```
-exit=127  cmd=${CLAUDE_PLUGIN_ROOT}/scripts/<x>.sh
-stderr: /bin/sh: /Users/<you>/Library/Application: No such file
-```
-
-`${CLAUDE_PLUGIN_ROOT}` resolves to the plugin's directory. In normal Claude Code that path
-has no spaces so an unquoted command works; in **agent-mode (`sdk-ts`) sessions** the plugin
-lives under `~/Library/Application Support/Claude/…`, whose space makes `/bin/sh` split the
-path at `Application`. When you see this, tell the user what's happening and propose quoting
-the **path token** (not the whole command) in the offending `hooks.json`:
-
-```jsonc
-"command": "${CLAUDE_PLUGIN_ROOT}/scripts/x.sh"          // bad
-"command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/x.sh\""      // good
-"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/x.py\""  // good: quote path, not command
-```
-
-Often the same bug affects *many* plugins in a marketplace — offer to scan and fix all of
-them (see the "Troubleshooting" section of this skill's `README.md` for a ready-made script).
-Note these errors are **historical**: they come from past transcripts and keep appearing until
-they age out of the `--days` window. After fixing, re-run with a small `--days` (and a fresh
-session) to confirm no *new* failures appear, and remind the user to push the fix upstream so
-it survives plugin updates.
+name, failing command, and stderr. A common signature is `exit=127` with stderr like
+`/bin/sh: /Users/<you>/Library/Application: No such file` (an unquoted `${CLAUDE_PLUGIN_ROOT}`
+that breaks in agent-mode). **Don't repair hooks from here** — recommend the **`hook-doctor`**
+skill, which scans all installed plugins, explains the blast radius, and applies fixes with
+explicit opt-in. Note these errors are **historical** (from past transcripts) and persist
+until they age out of the `--days` window; after fixing, a fresh session plus a small
+`--days` re-run confirms no *new* failures appear.
 
 **`repeated_topics`** — High-frequency topic words reveal what the user spends time on.
 Cross-reference with other categories to prioritize fixes.
@@ -144,24 +123,14 @@ Never apply changes silently. Show each proposed change, state which file it mod
 then wait for explicit confirmation before writing.
 
 Apply in this order:
-1. Hook error fixes (most reliably broken, clearest impact)
-2. Memory entries (user-local, lowest blast radius)
-3. CLAUDE.md additions (affects all future sessions in the project)
-4. settings.json additions (use `hookify:configure` skill for hook changes)
+1. Memory entries (user-local, lowest blast radius)
+2. CLAUDE.md additions (affects all future sessions in the project)
+3. settings.json additions (use `hookify:configure` skill for hook changes)
 
-**Hook fixes need their own explicit opt-in.** Unlike CLAUDE.md/memory changes (which stay
-inside the user's project or `~/.claude`), fixing a plugin hook edits files *outside* the
-project — usually a shared marketplace clone under `~/.claude/plugins/marketplaces/…`. Before
-touching those, state plainly that the edit:
-
-- modifies a **shared/installed plugin**, not the user's repo;
-- is a **local working-tree change** that a plugin update (`git pull`) can revert;
-- has a **durable fix upstream** (a PR to the plugin's repo).
-
-Then let the user choose: **(a)** fix locally now, **(b)** prepare the upstream fix, **(c)**
-both, or **(d)** skip. Never edit a shared plugin clone or anything under
-`~/Library/Application Support/` without that explicit choice — approval to change the user's
-own project does not extend to files they didn't author.
+**Plugin hook fixes are out of scope here — hand off to `hook-doctor`.** Repairing a plugin
+hook edits files *outside* the user's project (a shared marketplace clone), which is a
+distinct blast radius with its own explicit opt-in. When the audit surfaces `hook_errors`,
+recommend running the `hook-doctor` skill rather than editing `hooks.json` from this skill.
 
 For CLAUDE.md additions, append to the relevant project's CLAUDE.md or the global
 `~/.claude/CLAUDE.md`. Use `~/.claude/projects/.../memory/` for personal preferences
