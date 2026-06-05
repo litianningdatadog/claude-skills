@@ -13,7 +13,7 @@ skill does; this README is the entry point for humans browsing or installing the
 |-------|--------------|
 | [`efficiency-audit`](efficiency-audit/) | Analyzes your recent Claude Code conversation transcripts to surface recurring friction (repeated corrections, re-explained context, failing hooks), then proposes and applies concrete fixes to `CLAUDE.md`, memory, and settings. |
 | [`hook-doctor`](hook-doctor/) | Inspects and repairs installed plugin hook configurations (`hooks.json`). Detects unquoted `${CLAUDE_PLUGIN_ROOT}` commands that fail in agent-mode, reports them, and applies safe idempotent fixes with explicit opt-in. |
-| [`quicknotes`](quicknotes/) | Low-friction quick-note capture and management. Centralized markdown notes with date/project/dir metadata, fuzzy search, statuses, references, and time/location reminders. Capture via the `qn` CLI (instant), `/qn`, or natural language. |
+| [`quicknotes`](quicknotes/) | Low-friction quick-note capture and management. Centralized markdown notes (`~/.quicknotes`) with date/project/dir metadata, tags, fuzzy search, references, and time/location reminders; completing a note deletes it. Capture via the `qn` CLI (instant), `/qn`, or natural language. |
 
 ## Installing a skill
 
