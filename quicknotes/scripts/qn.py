@@ -66,6 +66,15 @@ def _resolve_or_report(home, ref):
     return None
 
 
+def _capture_msg(note):
+    parts = [f"✓ noted [{note['id']}] {note.get('title') or ''}".rstrip()]
+    if note.get("tags"):
+        parts.append("tags: " + ", ".join(note["tags"]))
+    if note.get("branch"):
+        parts.append("branch: " + note["branch"])
+    return "  ".join(parts)
+
+
 def cmd_capture(words, home):
     opts, rest = _extract_opts(words, {"--tag"})
     text, inline_tags = ns.extract_hashtags(" ".join(rest).strip())
@@ -75,8 +84,7 @@ def cmd_capture(words, home):
         print("Nothing to capture. Usage: qn <note text> [#tag …] [--tag T]")
         return 1
     note = ns.capture(text, home=home, tags=tags or None)
-    extra = ("  tags: " + ", ".join(note["tags"])) if note.get("tags") else ""
-    print(f"✓ noted [{note['id']}] {note.get('title') or ''}".rstrip() + extra)
+    print(_capture_msg(note))
     return 0
 
 

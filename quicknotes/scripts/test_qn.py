@@ -109,6 +109,16 @@ class CLITests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(ns.get(self.home, nid)["tags"], ["urgent"])
 
+    def test_capture_msg_includes_branch_and_tags(self):
+        msg = qn._capture_msg({"id": "x", "title": "t", "tags": ["a"], "branch": "main"})
+        self.assertIn("tags: a", msg)
+        self.assertIn("branch: main", msg)
+
+    def test_capture_msg_omits_absent_branch(self):
+        msg = qn._capture_msg({"id": "x", "title": "t", "tags": [], "branch": None})
+        self.assertNotIn("branch:", msg)
+        self.assertNotIn("tags:", msg)
+
     def test_search(self):
         self.run_cli(["postgres", "connection", "pool"])
         code, out = self.run_cli(["search", "postgres"])

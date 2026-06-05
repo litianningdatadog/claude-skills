@@ -38,7 +38,8 @@ body, stored as tags) or repeated **`--tag T`** flags. Both are normalized (lead
 dropped, lowercased, spaces→`-`). Note: in a raw shell, an unquoted `#` is a comment — inside
 Claude/`/qn` it's fine, but when guiding shell use, prefer `--tag` or quote the text.
 
-Then confirm the id + title (and any tags) back in one line. Enrichment guidance:
+Then confirm the id + title (plus any tags and the git branch, when present) back in one
+line. Enrichment guidance:
 - The script auto-fills date, `project`, `cwd`, `branch`, and derives a `title` from the first
   line. You may **suggest 1–3 tags** inferred from the text/project (pass them as `#tag` or
   `--tag`) — but keep capture instant; don't block on tagging.
