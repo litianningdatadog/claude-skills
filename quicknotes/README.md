@@ -65,20 +65,30 @@ cp ~/.claude/skills/quicknotes/commands/qn.md ~/.claude/commands/qn.md
 
 ## Usage
 
+> ⚠️ **Quote `#tags` in a terminal.** Your shell treats an unquoted `#` as the start of a
+> comment, so `qn buy milk #groceries` reaches `qn` as just `buy milk` — the tag is silently
+> dropped. In a real shell, **quote the text** (`qn "buy milk #groceries"`) or **use `--tag`**
+> (`qn buy milk --tag groceries`), which never needs quoting. Bare `#tags` work as-is only
+> inside Claude / via `/qn`, where there's no shell to strip them.
+
 ```bash
 qn remember to rotate the API creds       # capture (default — no verb)
-qn buy milk #groceries #errands           # inline tags (quote in a raw shell: "…#groceries")
-qn deploy the service --tag ops --tag urgent   # tags via flag (shell-safe, no quoting)
-qn add list the migration steps #planning # force-capture (text starts with a verb word)
+qn "buy milk #groceries #errands"          # inline tags — QUOTE in a shell (else # is a comment)
+qn deploy the service --tag ops --tag urgent   # tags via flag — shell-safe, no quoting needed
+qn add list the migration steps --tag planning # force-capture (text starts with a verb word)
 qn list [--project P] [--tag T]
 qn search postgres
 qn show deploy                            # full detail: labeled metadata block + body + refs
 qn done deploy                            # complete — DELETES the note file
-qn update creds --due 2026-06-12T17:00:00Z --tag security
+qn update creds --tag security            # set tags (--tag is the no-quote-needed form)
+qn update creds "#security"                # …or a quoted #tag
 qn due                                    # past-due notes
 qn here                                   # notes for this project/dir
 qn ref 20260605-... 20260604-...          # link two notes
 ```
+
+**Tags:** set via inline `#hashtag` or repeatable `--tag T`; both normalize (drop `#`,
+lowercase, spaces→`-`). In a terminal, prefer `--tag` or quote the `#` (see the warning above).
 
 Fuzzy targeting: `done`/`show`/`update`/`ref` accept an id or text; if ambiguous, the CLI
 lists candidates instead of guessing.
