@@ -7,7 +7,7 @@ CLI, the session-reminder hook, and the skill. Notes are one markdown file per n
 `<home>/notes/<id>.md`, with JSON-encoded frontmatter values (valid YAML, but parseable with
 the stdlib `json` module — no third-party dependency).
 
-`home` defaults to $QUICKNOTES_HOME or ~/.claude/quicknotes; tests pass an explicit temp home.
+`home` defaults to $QUICKNOTES_HOME or ~/.quicknotes; tests pass an explicit temp home.
 """
 
 import json
@@ -29,7 +29,7 @@ _HEX = "0123456789abcdef"
 
 
 def default_home() -> Path:
-    return Path(os.environ.get("QUICKNOTES_HOME") or (Path.home() / ".claude" / "quicknotes"))
+    return Path(os.environ.get("QUICKNOTES_HOME") or (Path.home() / ".quicknotes"))
 
 
 def notes_dir(home: Path | None = None) -> Path:

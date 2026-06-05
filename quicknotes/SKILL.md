@@ -8,7 +8,7 @@ description: "Capture and manage quick notes with near-zero friction. Use when t
 ## Overview
 
 Capture fleeting thoughts before they're lost, then list/search/complete/update them later.
-Notes are one markdown file per note under `~/.claude/quicknotes/notes/<id>.md` (override with
+Notes are one markdown file per note under `~/.quicknotes/notes/<id>.md` (override with
 `$QUICKNOTES_HOME`), with YAML frontmatter carrying date, project, cwd, branch, tags,
 priority, due, and references. All operations go through `scripts/qn.py` (backed by
 `scripts/notes_store.py`) — never hand-edit note files; let the script keep metadata correct.
@@ -65,7 +65,7 @@ qn ref <id|fuzzy> <id|fuzzy>     # link two notes (bidirectional)
 (`qn …` above = `python3 ~/.claude/skills/quicknotes/scripts/qn.py …`.)
 
 Lifecycle is simple: a note is **active** until it's done. `qn done` **removes the note file
-from disk** (a hard delete — there is no cancelled/archived state). The `~/.claude/quicknotes` store
+from disk** (a hard delete — there is no cancelled/archived state). The `~/.quicknotes` store
 is git-init'd, so a committed note remains recoverable from git history; warn the user that
 `done` is destructive if they ask to complete something they may want back.
 

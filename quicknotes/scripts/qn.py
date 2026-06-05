@@ -15,7 +15,7 @@ Capture is the default: any input not starting with a reserved verb becomes a no
     qn here                        notes for the current project/dir
     qn ref <id|fuzzy> <id|fuzzy>   link two notes
 
-Notes live under $QUICKNOTES_HOME or ~/.claude/quicknotes. Completing a note removes its file.
+Notes live under $QUICKNOTES_HOME or ~/.quicknotes. Completing a note removes its file.
 """
 
 import sys

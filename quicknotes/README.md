@@ -21,7 +21,7 @@ All four write to the **same store** and format.
 
 ## Storage
 
-One markdown file per note at `~/.claude/quicknotes/notes/<id>.md` (override with `$QUICKNOTES_HOME`).
+One markdown file per note at `~/.quicknotes/notes/<id>.md` (override with `$QUICKNOTES_HOME`).
 YAML frontmatter (JSON-encoded values — valid YAML, no PyYAML dependency):
 
 ```markdown
@@ -94,7 +94,7 @@ Fuzzy targeting: `done`/`show`/`update`/`ref` accept an id or text; if ambiguous
 lists candidates instead of guessing.
 
 **Lifecycle:** a note is active until you complete it. `qn done` **deletes the note's file**
-(hard delete — no cancelled/archived state). The `~/.claude/quicknotes` store is git-init'd, so a
+(hard delete — no cancelled/archived state). The `~/.quicknotes` store is git-init'd, so a
 committed note stays recoverable from git history.
 
 ## Tests
