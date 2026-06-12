@@ -32,6 +32,7 @@ CONTROL_POINTS: list[tuple[int, float]] = [
 ]
 
 P_ZERO = 5000  # lines — at or above this → Critical Context Blocker
+RECIPE_BOOK_THRESHOLD = 200  # lines — above this → Recipe Book remediation needed
 
 
 def efficiency_score(lines: int) -> float:
@@ -45,6 +46,11 @@ def efficiency_score(lines: int) -> float:
             t = (lines - x0) / (x1 - x0) if x1 != x0 else 0.0
             return round(y0 + t * (y1 - y0), 4)
     return 0.0
+
+
+def recipe_book_alert(lines: int) -> bool:
+    """True when a file has enough rules to warrant the Recipe Book refactor procedure."""
+    return lines > RECIPE_BOOK_THRESHOLD
 
 
 def diagnosis(score: float) -> str:
@@ -73,6 +79,7 @@ def score_file(path: Path) -> dict | None:
         "bytes": len(text.encode("utf-8")),
         "score": score,
         "diagnosis": diagnosis(score),
+        "recipe_book_alert": recipe_book_alert(lines),
     }
 
 
@@ -121,6 +128,14 @@ def main() -> int:
         print(f"⚠️  {len(blockers)} Critical Context Blocker(s) detected!")
         for b in blockers:
             print(f"   → {b['path']} ({b['lines']} lines) — must be trimmed before it is useful.")
+        print()
+
+    recipe_alerts = [r for r in results if r.get("recipe_book_alert")]
+    if recipe_alerts:
+        print(f"📋 Recipe Book remediation needed ({len(recipe_alerts)} file(s) exceed {RECIPE_BOOK_THRESHOLD} lines):")
+        for r in recipe_alerts:
+            print(f"   → {r['path']} ({r['lines']} lines) — extract domain-scoped rules into .claude/rules/*.md")
+        print(f"   Run the efficiency-audit skill for the guided 4-step procedure.")
         print()
 
     return exit_code

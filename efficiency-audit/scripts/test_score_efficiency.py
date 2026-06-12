@@ -69,6 +69,46 @@ class DiagnosisTests(unittest.TestCase):
         self.assertEqual(se.diagnosis(0.0), "Critical Context Blocker")
 
 
+class RecipeBookAlertTests(unittest.TestCase):
+    def test_no_alert_below_threshold(self):
+        self.assertFalse(se.recipe_book_alert(199))
+        self.assertFalse(se.recipe_book_alert(200))
+
+    def test_alert_above_threshold(self):
+        self.assertTrue(se.recipe_book_alert(201))
+        self.assertTrue(se.recipe_book_alert(5000))
+
+    def test_score_file_includes_recipe_book_alert(self):
+        path = write_lines(50)
+        result = se.score_file(path)
+        self.assertIn("recipe_book_alert", result)
+        self.assertFalse(result["recipe_book_alert"])
+
+    def test_score_file_recipe_book_alert_fires_over_200(self):
+        path = write_lines(201)
+        result = se.score_file(path)
+        self.assertTrue(result["recipe_book_alert"])
+
+    def test_text_report_shows_recipe_book_warning(self):
+        # The CLI text output should mention the Recipe Book when alert fires.
+        path = write_lines(201)
+        import subprocess, sys
+        out = subprocess.run(
+            [sys.executable, "score_efficiency.py", str(path)],
+            capture_output=True, text=True
+        ).stdout
+        self.assertIn("Recipe Book", out)
+
+    def test_text_report_no_recipe_book_warning_when_healthy(self):
+        path = write_lines(50)
+        import subprocess, sys
+        out = subprocess.run(
+            [sys.executable, "score_efficiency.py", str(path)],
+            capture_output=True, text=True
+        ).stdout
+        self.assertNotIn("Recipe Book", out)
+
+
 class FileTests(unittest.TestCase):
     def test_score_file_counts_lines(self):
         path = write_lines(400)
