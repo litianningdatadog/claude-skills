@@ -9,12 +9,19 @@ automation candidates, and failing hooks — then proposes and applies concrete 
 
 ## How it works
 
-Pipeline: **analyze → draft rules → report → apply (with approval)**. A Python script
+Pipeline: **analyze → draft rules → report → plan → act → verify**. A Python script
 (`scripts/analyze_conversations.py`) parses the JSONL transcripts under `~/.claude/projects/`
 and emits pre-clustered findings grouped by recurrence count and dominant project. Claude then
 **drafts concrete proposed `CLAUDE.md` rules** for the top correction groups (approve/edit/skip),
 synthesizes a prioritized report, and applies approved changes to `CLAUDE.md`, memory, and
-settings. See `SKILL.md` for the full four-phase procedure Claude follows.
+settings following a strict **Plan → Act → Verify** cycle.
+
+> **Governance (SOSA™):** The skill requires explicit human approval before writing to
+> `CLAUDE.md`, `MEMORY.md`, or any `.claude/rules/` file. Each change is shown in full
+> before execution; approving one change does not authorize any other. See the
+> [Security & Governance section in SKILL.md](SKILL.md) for the full rules.
+
+See `SKILL.md` for the full four-phase procedure Claude follows.
 
 ## Install
 
