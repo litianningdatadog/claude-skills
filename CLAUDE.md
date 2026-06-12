@@ -53,3 +53,7 @@ The `analyze_conversations.py` script scans `~/.claude/projects/**/*.jsonl` (Cla
 per-session transcript logs). Useful flags: `--days N`, `--project <substring>`,
 `--output json|text`. Note the body of `SKILL.md` invokes it from the *installed* path
 (`~/.claude/skills/...`), so test against the repo path while developing.
+
+## Git conventions
+
+- When creating a git branch in this repository, ALWAYS use the naming convention `tianning.li/<BRANCH_NAME>`. Never create a branch without the `tianning.li/` prefix.
