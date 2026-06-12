@@ -75,15 +75,17 @@ python3 scripts/score_efficiency.py ~/.claude/CLAUDE.md        # single file
 python3 scripts/score_efficiency.py ~/.claude/CLAUDE.md --json  # machine-readable
 ```
 
-| Lines | Score | Diagnosis |
-|-------|-------|-----------|
-| 0–300 | 1.00 | Optimal |
-| 300–750 | 1.00→0.50 | Good / Warning |
-| 750–5000 | 0.50→0.00 | Critical |
-| ≥ 5000 | **0.00** | **Critical Context Blocker** — exits 1 |
+| Lines | Score | Diagnosis | Alert |
+|-------|-------|-----------|-------|
+| 0–300 | 1.00 | Optimal | — |
+| 300–750 | 1.00→0.50 | Good / Warning | — |
+| > 200 | any | — | 📋 **Recipe Book** — domain rules should move to `.claude/rules/` |
+| 750–5000 | 0.50→0.00 | Critical | — |
+| ≥ 5000 | **0.00** | **Critical Context Blocker** — exits 1 | — |
 
-Files that score 0.0 are treated as **High Impact** in the Phase 3 report regardless of
-friction findings.
+Two independent signals: the **efficiency score** (continuous, 0–5000 lines) and the **Recipe Book alert** (structural, fires above 200 lines regardless of score). A 250-line file can score 1.00 Optimal *and* trigger the Recipe Book alert — the score measures size, the alert measures structure.
+
+Files scoring 0.0 are treated as **High Impact** in the Phase 3 report. Recipe Book alerts prompt the guided 4-step extraction procedure in [`references/recipe-book.md`](references/recipe-book.md).
 
 ### Output categories
 
@@ -134,7 +136,8 @@ efficiency-audit/
 ├── references/
 │   ├── governance.md                     # SOSA™ rules — loaded by agent before Phase 4
 │   ├── karpathy-guardrails.md            # 4 behavioral principles — loaded when checking own behavior
-│   └── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
+│   ├── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
+│   └── recipe-book.md                    # 4-step CLAUDE.md refactor procedure — loaded when >200 lines
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
     ├── score_efficiency.py               # file byte-efficiency scorer (piecewise linear)
