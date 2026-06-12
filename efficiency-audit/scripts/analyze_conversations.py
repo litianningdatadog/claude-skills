@@ -171,6 +171,8 @@ def extract_session_data(path: Path) -> dict:
         "timestamps": [],
     }
 
+    last_assistant: str | None = None
+
     with open(path, encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
@@ -186,10 +188,20 @@ def extract_session_data(path: Path) -> dict:
             if ts:
                 session["timestamps"].append(ts)
 
-            if t == "user":
+            if t == "assistant":
+                content = _join_text_content(d.get("message", {}).get("content", ""))
+                if content:
+                    # Keep a short snippet — enough to understand what Claude did
+                    last_assistant = " ".join(content.split())[:300]
+
+            elif t == "user":
                 content = _join_text_content(d.get("message", {}).get("content", ""))
                 if content and not is_noise(content):
-                    session["user_messages"].append({"text": content, "ts": ts})
+                    session["user_messages"].append({
+                        "text": content,
+                        "ts": ts,
+                        "preceding_action": last_assistant,
+                    })
 
             elif t == "system":
                 # Canonical hook-error channel: stop_hook_summary carries a structured
@@ -248,13 +260,17 @@ def group_by_pattern(scored: list[dict]) -> list[dict]:
         # First pattern wins — prevents double-counting across groups.
         pat = item["patterns"][0]
         g = groups.setdefault(pat, {"pattern": pat, "count": 0, "_sessions": set(),
-                                    "_projects": Counter(), "examples": []})
+                                    "_projects": Counter(), "examples": [],
+                                    "preceding_action": None})
         g["count"] += 1
         g["_sessions"].add(item["session"])
         g["_projects"][item.get("project", "")] += 1
         if len(g["examples"]) < 3:
             # Collapse whitespace so multi-line messages stay on one line in reports.
             g["examples"].append(" ".join(item["text"].split())[:200])
+        # Keep the first preceding_action we encounter (highest-frequency example).
+        if g["preceding_action"] is None and item.get("preceding_action"):
+            g["preceding_action"] = item["preceding_action"][:200]
 
     out = [
         {
@@ -262,6 +278,7 @@ def group_by_pattern(scored: list[dict]) -> list[dict]:
             "sessions": len(g["_sessions"]),
             "top_project": g["_projects"].most_common(1)[0][0] if g["_projects"] else "",
             "examples": g["examples"],
+            "preceding_action": g.get("preceding_action"),
         }
         for g in groups.values()
     ]
@@ -309,8 +326,13 @@ def analyze(sessions: list[dict]) -> dict:
             scores = score_message(text)
             for cat, score_key in CATEGORY_SCORE_KEY.items():
                 if scores[score_key]:
-                    scored[cat].append({"text": text, "session": sess["session_id"],
-                                        "project": proj, "patterns": scores[score_key]})
+                    scored[cat].append({
+                        "text": text,
+                        "session": sess["session_id"],
+                        "project": proj,
+                        "patterns": scores[score_key],
+                        "preceding_action": msg.get("preceding_action"),
+                    })
 
         findings["hook_errors"].extend({**he, "session": sess["session_id"]} for he in sess["hook_errors"])
 
@@ -366,6 +388,8 @@ def print_text_report(findings: dict):
         for g in groups[:5]:
             proj = f" ({g['top_project']})" if g.get("top_project") else ""
             print(f"    [{g['count']}x / {g['sessions']} sessions{proj}] e.g. {g['examples'][0][:140]}")
+            if key == "corrections" and g.get("preceding_action"):
+                print(f"      ↳ Claude did: {g['preceding_action'][:120]}")
         print()
 
     if findings["hook_errors"]:
