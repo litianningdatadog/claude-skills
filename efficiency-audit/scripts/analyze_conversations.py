@@ -327,6 +327,58 @@ def analyze(sessions: list[dict]) -> dict:
     return findings
 
 
+# --- baseline / trend tracking ----------------------------------------------------------
+
+_BASELINE_CATEGORIES = ["corrections", "missing_context", "slow_start_context",
+                         "automation_candidates", "hook_errors"]
+_BASELINE_FILE = Path.home() / ".claude" / "efficiency-audit-baseline.json"
+
+
+def _baseline_key(days: int, project: str | None) -> str:
+    return f"{days}:{project or '*'}"
+
+
+def load_baseline(days: int, project: str | None = None) -> dict | None:
+    """Return the saved baseline for this (days, project) scope, or None."""
+    try:
+        data = json.loads(_BASELINE_FILE.read_text(encoding="utf-8"))
+        return data.get(_baseline_key(days, project))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_baseline(findings: dict, days: int, project: str | None = None) -> None:
+    """Persist the current run's category totals as the new baseline."""
+    try:
+        data = json.loads(_BASELINE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        data = {}
+    snapshot = {
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "days": days,
+        "project": project,
+    }
+    for cat in _BASELINE_CATEGORIES:
+        items = findings.get(cat, [])
+        snapshot[cat] = sum(g.get("count", 1) for g in items) if items and isinstance(items[0], dict) else len(items)
+    data[_baseline_key(days, project)] = snapshot
+    _BASELINE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def delta_str(current: int, previous: int | None) -> str | None:
+    """Human-readable delta vs. baseline. Returns None when no baseline."""
+    if previous is None:
+        return None
+    if previous == 0:
+        return f"was 0, +{current}"
+    if current == previous:
+        return f"was {previous}, no change"
+    pct = round((current - previous) / previous * 100)
+    arrow = "↓" if current < previous else "↑"
+    sign = "-" if current < previous else "+"
+    return f"was {previous}, {sign}{abs(pct)}% {arrow}"
+
+
 def _dedupe_hook_errors(errors: list[dict]) -> list[dict]:
     seen, out = set(), []
     for he in errors:
@@ -337,7 +389,7 @@ def _dedupe_hook_errors(errors: list[dict]) -> list[dict]:
     return out
 
 
-def print_text_report(findings: dict):
+def print_text_report(findings: dict, baseline: dict | None = None):
     s = findings["summary"]
     print("=== Claude Code Efficiency Audit ===")
     print(f"Sessions analyzed: {s['sessions_analyzed']}")
@@ -345,6 +397,8 @@ def print_text_report(findings: dict):
     dr = s["date_range"]
     print(f"Date range: {dr['earliest'][:10] if dr['earliest'] else 'N/A'} → {dr['latest'][:10] if dr['latest'] else 'N/A'}")
     print(f"Projects: {dict(s['projects'].most_common(5))}")
+    if baseline:
+        print(f"Baseline: {baseline['timestamp'][:10]}")
     print()
 
     sections = [
@@ -361,7 +415,10 @@ def print_text_report(findings: dict):
     for title, key, desc in sections:
         groups = findings[key]
         total = sum(g["count"] for g in groups)
-        print(f"--- {title} ({total} matches across {len(groups)} patterns) ---")
+        prev = baseline.get(key) if baseline else None
+        d = delta_str(total, prev)
+        suffix = f", {d}" if d else ""
+        print(f"--- {title} ({total} matches{suffix}) ---")
         print(f"    {desc}")
         for g in groups[:5]:
             proj = f" ({g['top_project']})" if g.get("top_project") else ""
@@ -369,7 +426,10 @@ def print_text_report(findings: dict):
         print()
 
     if findings["hook_errors"]:
-        print(f"--- HOOK ERRORS ({len(findings['hook_errors'])} unique) ---")
+        prev_hooks = baseline.get("hook_errors") if baseline else None
+        d = delta_str(len(findings["hook_errors"]), prev_hooks)
+        suffix = f", {d}" if d else ""
+        print(f"--- HOOK ERRORS ({len(findings['hook_errors'])} unique{suffix}) ---")
         for he in findings["hook_errors"][:5]:
             print(f"    [{he['hook_name']}] exit={he['exit_code']} cmd={he['command'][:60]}")
             if he["stderr"]:
@@ -398,7 +458,10 @@ def main():
     if args.output == "json":
         print(json.dumps(findings, indent=2, default=str))
     else:
-        print_text_report(findings)
+        baseline = load_baseline(args.days, args.project)
+        print_text_report(findings, baseline)
+        save_baseline(findings, args.days, args.project)
+        print(f"Baseline saved for next run.", file=sys.stderr)
 
 
 if __name__ == "__main__":

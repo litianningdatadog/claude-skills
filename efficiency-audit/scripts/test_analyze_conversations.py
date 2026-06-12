@@ -294,5 +294,53 @@ class RecurrenceTests(unittest.TestCase):
         self.assertEqual(total, 3)
 
 
+class BaselineTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile, os
+        self.tmp = tempfile.mkdtemp()
+        self._orig_home = os.environ.get("HOME")
+        os.environ["HOME"] = self.tmp
+
+    def tearDown(self):
+        import os
+        if self._orig_home is not None:
+            os.environ["HOME"] = self._orig_home
+
+    def _findings(self, n_corrections=2):
+        sessions = [ac.extract_session_data(write_session(
+            [user("no, don't do that")] * n_corrections
+        ))]
+        return ac.analyze(sessions)
+
+    def test_save_and_load_baseline(self):
+        findings = self._findings(2)
+        ac.save_baseline(findings, days=30, project="proj-a")
+        bl = ac.load_baseline(days=30, project="proj-a")
+        self.assertIsNotNone(bl)
+        self.assertEqual(bl["corrections"], 2)
+        self.assertEqual(bl["project"], "proj-a")
+        self.assertEqual(bl["days"], 30)
+
+    def test_baseline_scoped_to_project_and_days(self):
+        findings = self._findings(2)
+        ac.save_baseline(findings, days=30, project="proj-a")
+        # Different project → no baseline.
+        self.assertIsNone(ac.load_baseline(days=30, project="proj-b"))
+        # Different days window → no baseline.
+        self.assertIsNone(ac.load_baseline(days=7, project="proj-a"))
+
+    def test_delta_string_shows_change(self):
+        self.assertEqual(ac.delta_str(22, 30), "was 30, -27% ↓")
+        self.assertEqual(ac.delta_str(30, 22), "was 22, +36% ↑")
+        self.assertEqual(ac.delta_str(5, 5), "was 5, no change")
+        self.assertIsNone(ac.delta_str(5, None))  # no baseline → no delta
+
+    def test_save_overwrites_previous(self):
+        ac.save_baseline(self._findings(2), days=30, project="p")
+        ac.save_baseline(self._findings(4), days=30, project="p")
+        bl = ac.load_baseline(days=30, project="p")
+        self.assertEqual(bl["corrections"], 4)
+
+
 if __name__ == "__main__":
     unittest.main()
