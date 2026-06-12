@@ -117,5 +117,7 @@ efficiency-audit/
 │   └── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
-    └── test_analyze_conversations.py     # unittest suite
+    ├── score_efficiency.py               # file byte-efficiency scorer (piecewise linear)
+    ├── test_analyze_conversations.py     # unittest suite
+    └── test_score_efficiency.py          # unittest suite for scorer
 ```

@@ -54,6 +54,22 @@ python3 ~/.claude/skills/efficiency-audit/scripts/analyze_conversations.py \
 To audit **all projects** instead (cross-project personal patterns, global CLAUDE.md or
 memory candidates), drop the `--project` flag.
 
+**Also run the file efficiency scorer** on the project's `CLAUDE.md` and `MEMORY.md` (if
+they exist). This produces a hard numeric score using piecewise linear interpolation over
+line-count control points {0→1.0, 300→1.0, 750→0.5, 5000→0.0}:
+
+```bash
+python3 ~/.claude/skills/efficiency-audit/scripts/score_efficiency.py \
+  .claude/CLAUDE.md ~/.claude/CLAUDE.md ~/.claude/MEMORY.md \
+  2>/dev/null
+```
+
+A score of **1.0** is optimal; **< 0.5** is a warning; **0.0** means the file exceeds
+5000 lines and is a *Critical Context Blocker* that must be trimmed before further work.
+Include these scores in the Phase 3 report alongside the friction findings. Any file
+flagged as a Critical Context Blocker should be treated as **High Impact** regardless of
+other findings.
+
 ### Phase 2: Synthesize Findings
 
 The script pre-clusters results: each category (`corrections`, `missing_context`,
