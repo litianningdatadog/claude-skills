@@ -9,19 +9,21 @@ automation candidates, and failing hooks — then proposes and applies concrete 
 
 ## How it works
 
-Pipeline: **analyze → draft rules → report → plan → act → verify**. A Python script
-(`scripts/analyze_conversations.py`) parses the JSONL transcripts under `~/.claude/projects/`
-and emits pre-clustered findings grouped by recurrence count and dominant project. Claude then
-**drafts concrete proposed `CLAUDE.md` rules** for the top correction groups (approve/edit/skip),
-synthesizes a prioritized report, and applies approved changes to `CLAUDE.md`, memory, and
-settings following a strict **Plan → Act → Verify** cycle.
+Pipeline: **analyze → draft rules → report → plan → act → verify → (opt-in) Karpathy merge**.
+A Python script (`scripts/analyze_conversations.py`) parses the JSONL transcripts under
+`~/.claude/projects/` and emits pre-clustered findings grouped by recurrence count and dominant
+project. Claude drafts concrete proposed `CLAUDE.md` rules for the top correction groups,
+synthesizes a prioritized report, applies approved changes following a strict **Plan → Act →
+Verify** cycle, and finally offers an opt-in smart merge of
+[Karpathy-inspired behavioral guidelines](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md)
+into your `CLAUDE.md` (deduplicated against your existing rules — not blindly appended).
 
 > **Governance (SOSA™):** The skill requires explicit human approval before writing to
 > `CLAUDE.md`, `MEMORY.md`, or any `.claude/rules/` file. Each change is shown in full
 > before execution; approving one change does not authorize any other. See
 > [`references/governance.md`](references/governance.md) for the full rules.
 
-See `SKILL.md` for the full four-phase procedure Claude follows.
+See `SKILL.md` for the full five-phase procedure Claude follows.
 
 ## Install
 
@@ -32,6 +34,13 @@ cp -R efficiency-audit ~/.claude/skills/
 Once installed, trigger it in any Claude Code session with phrases like
 "audit my usage", "improve my workflow", or "what am I repeating", or run
 `/efficiency-audit` if your client exposes skills as commands.
+
+> **Keep the installed copy in sync.** The skill runs from `~/.claude/skills/efficiency-audit/`,
+> not the repo. After pulling updates, re-run the `cp -R` above — otherwise the agent runs a
+> stale version that's missing new phases and guardrails. A quick check:
+> ```bash
+> wc -l ~/.claude/skills/efficiency-audit/SKILL.md  # should match the repo
+> ```
 
 ## Running the analyzer directly
 
@@ -93,19 +102,21 @@ session) to confirm no *new* failures appear.
 Standard-library `unittest`, no dependencies:
 
 ```bash
-cd scripts && python3 -m unittest test_analyze_conversations
+cd scripts && python3 -m unittest test_analyze_conversations test_score_efficiency
 ```
 
 ## Files
 
 ```
 efficiency-audit/
-├── SKILL.md                              # canonical agent instructions (the skill spec)
+├── SKILL.md                              # canonical agent instructions (5-phase procedure)
 ├── README.md                             # this file
 ├── references/
 │   ├── governance.md                     # SOSA™ rules — loaded by agent before Phase 4
 │   └── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
-    └── test_analyze_conversations.py     # unittest suite
+    ├── score_efficiency.py               # piecewise linear file efficiency scorer
+    ├── test_analyze_conversations.py     # unittest suite for analyzer
+    └── test_score_efficiency.py          # unittest suite for scorer
 ```
