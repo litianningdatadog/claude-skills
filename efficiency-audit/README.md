@@ -18,8 +18,8 @@ settings following a strict **Plan → Act → Verify** cycle.
 
 > **Governance (SOSA™):** The skill requires explicit human approval before writing to
 > `CLAUDE.md`, `MEMORY.md`, or any `.claude/rules/` file. Each change is shown in full
-> before execution; approving one change does not authorize any other. See the
-> [Security & Governance section in SKILL.md](SKILL.md) for the full rules.
+> before execution; approving one change does not authorize any other. See
+> [`references/governance.md`](references/governance.md) for the full rules.
 
 See `SKILL.md` for the full four-phase procedure Claude follows.
 
@@ -102,6 +102,9 @@ cd scripts && python3 -m unittest test_analyze_conversations
 efficiency-audit/
 ├── SKILL.md                              # canonical agent instructions (the skill spec)
 ├── README.md                             # this file
+├── references/
+│   ├── governance.md                     # SOSA™ rules — loaded by agent before Phase 4
+│   └── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
     └── test_analyze_conversations.py     # unittest suite
