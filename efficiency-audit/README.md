@@ -113,6 +113,7 @@ efficiency-audit/
 ├── README.md                             # this file
 ├── references/
 │   ├── governance.md                     # SOSA™ rules — loaded by agent before Phase 4
+│   ├── karpathy-guardrails.md            # 4 behavioral principles — loaded when checking own behavior
 │   └── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
