@@ -45,6 +45,10 @@ python3 scripts/analyze_conversations.py --days 30 --output json 2>/dev/null
 | `--project P` | _(all)_ | Restrict to a project. Accepts a real path (`/Users/me/DataDog/foo`), the folder name (`foo`), or the encoded dir name — matched tolerant of the `/`/`.`→`-` encoding Claude Code uses for transcript dirs. |
 | `--output json\|text` | `json` | `json` for the skill to consume; `text` for a quick human preview. |
 
+The `--output text` mode automatically saves a baseline to `~/.claude/efficiency-audit-baseline.json`
+after each run and shows deltas on the next run — e.g. `CORRECTIONS (22 matches, was 30, -27% ↓)`.
+This lets you measure whether CLAUDE.md fixes are actually reducing friction over time.
+
 ### Output categories
 
 `corrections`, `missing_context`, `slow_start_context`, and `automation_candidates` are
@@ -56,6 +60,7 @@ each a list of groups sorted by frequency. Each group carries:
 | `sessions` | Distinct sessions where the pattern appeared |
 | `top_project` | The project where this friction occurred most |
 | `examples` | Up to 3 representative messages (whitespace-collapsed) |
+| `preceding_action` | What Claude said immediately before the correction (`corrections` only) — the causal trigger used to draft targeted CLAUDE.md rules |
 
 `hook_errors` lists failing hooks (name, exit code, stderr). System-generated noise
 (context-compaction notices, slash-command and skill-body injections, security-review

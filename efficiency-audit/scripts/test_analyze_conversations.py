@@ -111,6 +111,43 @@ class NoiseFilterTests(unittest.TestCase):
 
 
 class ExtractionTests(unittest.TestCase):
+    def test_preceding_action_captured(self):
+        path = write_session([
+            assistant("Let me create a worktree for this task."),
+            user("no, don't use worktrees, use a branch"),
+        ])
+        sess = ac.extract_session_data(path)
+        msg = sess["user_messages"][0]
+        self.assertIn("preceding_action", msg)
+        self.assertIn("worktree", msg["preceding_action"])
+
+    def test_preceding_action_none_when_no_prior_assistant(self):
+        path = write_session([user("no, don't do that")])
+        sess = ac.extract_session_data(path)
+        self.assertIsNone(sess["user_messages"][0]["preceding_action"])
+
+    def test_preceding_action_updates_with_latest_assistant(self):
+        path = write_session([
+            assistant("First assistant turn."),
+            user("ok"),
+            assistant("Second assistant turn."),
+            user("no, don't do that"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertIn("Second", sess["user_messages"][1]["preceding_action"])
+        self.assertIn("First", sess["user_messages"][0]["preceding_action"])
+
+    def test_correction_group_has_preceding_action(self):
+        path = write_session([
+            assistant("I'll create a worktree for isolation."),
+            user("no, don't use worktrees"),
+        ])
+        sessions = [ac.extract_session_data(path)]
+        findings = ac.analyze(sessions)
+        top = findings["corrections"][0]
+        self.assertIn("preceding_action", top)
+        self.assertIn("worktree", top["preceding_action"])
+
     def test_noise_user_messages_are_dropped(self):
         path = write_session(
             [
