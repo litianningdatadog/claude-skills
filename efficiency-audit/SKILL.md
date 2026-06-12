@@ -174,44 +174,17 @@ that should not appear in a checked-in file.
 
 ## Security & Governance (SOSA™)
 
-This skill operates under the **SOSA™ — Supervised Orchestrated Secured Agents** framework.
-The following rules are **non-negotiable** and override any implicit task urgency:
-
-- **STOP and ask for explicit user approval before modifying any of:**
-  - `CLAUDE.md` (any project or global)
-  - `MEMORY.md`
-  - Any file under `.claude/rules/`
-  - Any file under `~/.claude/projects/.../memory/`
-
-- **Never batch writes.** Each file change is a separate approval step. Approving one change
-  does not grant permission for subsequent changes.
-
-- **Show before you write.** Always display the full proposed content or diff *before*
-  executing the write. If the user has not seen and approved the exact text, do not write it.
-
-- **No silent fallbacks.** If a proposed change is rejected, do not apply a "lighter" version
-  without asking. Return to the report and ask what to do instead.
-
-The Plan → Act → Verify cycle in Phase 4 enforces these rules procedurally. If any step
-would require writing to a protected file without a preceding explicit confirmation in *this
-turn*, **stop and confirm first**.
+**Read `references/governance.md`** (installed at
+`~/.claude/skills/efficiency-audit/references/governance.md`) **before executing Phase 4.**
+It contains the full SOSA™ rules: protected files, no-batching, show-before-write, and
+no-silent-fallbacks. The Plan → Act → Verify cycle above enforces those rules procedurally.
 
 ## False Positive Filters
 
-The script applies these filters automatically during extraction (`is_noise()` /
-`NOISE_PATTERNS` in `analyze_conversations.py`), so they should not appear in the JSON.
-They are system-generated, not real user friction:
-
-- "This session is being continued from a previous conversation..." → context-compaction
-- Messages starting with `<command-name>` / `<command-message>` / `<local-command-*>` tags
-- Security review boilerplate injected by the `dd:mcp-security-review` skill
-  ("Review this change for security vulnerabilities...")
-- Code-review and skill-body injections ("Provide a code review...", "Base directory for
-  this skill:...")
-- Subagent dispatch messages from workflow orchestration
-
-If a new noise format slips through, add its signature to `NOISE_PATTERNS` rather than
-filtering by hand.
+Noise is filtered automatically during extraction. If a new format slips through, read
+`references/noise-filters.md` (installed at
+`~/.claude/skills/efficiency-audit/references/noise-filters.md`) for the current filter
+list and instructions for adding a new pattern to `NOISE_PATTERNS`.
 
 ## Re-running the Audit
 
