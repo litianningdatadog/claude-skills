@@ -64,12 +64,23 @@ extraction (see "False Positive Filters" below), so every group represents real 
 
 Interpret each category:
 
-**`corrections`** — Groups of messages where the user redirected or corrected Claude. The
-`count`/`sessions` fields give you the recurring *class* of mistake and the `top_project`
-field shows where it happened most. For each high-count group, **draft a concrete proposed
-CLAUDE.md rule** — don't just describe the problem, write the actual rule text (e.g.
-`NEVER create a new commit unless explicitly instructed`). Present the draft before the
-Phase 3 report so the user can refine it.
+**`corrections`** — Groups of messages where the user redirected or corrected Claude. Each
+group carries:
+- `count`/`sessions` — how often and how broadly this class of mistake recurred.
+- `top_project` — where it happened most; use this to route the CLAUDE.md fix.
+- `preceding_action` — what Claude said or did *immediately before* the correction (the
+  causal trigger). This is the most actionable field: use it to write a rule that targets
+  the *specific behavior* rather than just the general topic.
+
+For each high-count group, **draft a concrete proposed CLAUDE.md rule** using both the
+correction text *and* the `preceding_action`. For example:
+
+- correction: "don't commit yet"
+- preceding_action: "Committed as `abc123`..."
+- → rule: `NEVER create a git commit without explicit instruction. Finish the task, show a diff, then ask.`
+
+Rules should be in imperative form, specific enough to prevent the observed behavior, and
+scoped to the right project or global CLAUDE.md based on `top_project`.
 
 **`missing_context`** — Messages where the user re-explained context. Ask: what facts are
 being re-introduced session after session? These belong in CLAUDE.md project instructions
@@ -95,8 +106,14 @@ until they age out of the `--days` window; after fixing, a fresh session plus a 
 ### Phase 3: Produce a Prioritized Improvement Report
 
 **Before writing the report**, draft proposed fixes for the top findings:
-- For each `corrections` group with `count` >= 3: write a candidate CLAUDE.md rule as a
-  one-liner in imperative form. Example: `NEVER use worktrees for this repo — always use the branch directly.`
+- For each `corrections` group with `count` >= 3: use both `examples` and `preceding_action`
+  to write a precise CLAUDE.md rule. The rule should name what Claude was *doing* when the
+  correction fired, not just what the user said. Example:
+
+  > correction: "don't commit, push to remote instead"
+  > preceding_action: "Committed on `tianning.li/dd-trace-secure-random-test`"
+  > → rule: `NEVER push to remote after committing unless explicitly asked. Commit and stop; let the user decide whether to push.`
+
 - For each `missing_context` group with `sessions` >= 3: write a candidate CLAUDE.md fact.
 - Show these drafts and ask the user to approve, edit, or skip each before proceeding to
   the full report. This is the highest-value output of the audit — don't skip it.
@@ -167,6 +184,7 @@ filtering by hand.
 
 ## Re-running the Audit
 
-Run every 2–4 weeks to catch new patterns. After applying changes, note the current
-baseline counts for `corrections` and `missing_context` so the next run can measure
-whether friction decreased in those areas.
+Run every 2–4 weeks to catch new patterns. The script automatically saves a baseline after
+each text-mode run (`~/.claude/efficiency-audit-baseline.json`) and shows deltas on the next
+run (e.g. `CORRECTIONS (22 matches, was 30, -27% ↓)`). Use the delta to confirm that applied
+CLAUDE.md rules are actually reducing friction before adding more.
