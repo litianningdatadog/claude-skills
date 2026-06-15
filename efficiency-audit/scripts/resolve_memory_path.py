@@ -25,4 +25,5 @@ try:
 except subprocess.CalledProcessError:
     root = os.getcwd()
 
-print(os.path.expanduser(f"~/.claude/projects/{root.replace('/', '-')}/memory/MEMORY.md"))
+proj = root.replace("/", "-").replace(".", "-")
+print(os.path.expanduser(f"~/.claude/projects/{proj}/memory/MEMORY.md"))
