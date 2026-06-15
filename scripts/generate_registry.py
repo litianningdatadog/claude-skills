@@ -57,10 +57,11 @@ def main():
     preserved_at = None
     if os.path.isfile(output_path):
         try:
-            existing = json.load(open(output_path))
+            with open(output_path) as f:
+                existing = json.load(f)
             if existing.get('skills') == skills:
                 preserved_at = existing.get('updated_at')
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             pass
 
     registry = {
