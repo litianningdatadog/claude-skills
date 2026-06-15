@@ -40,6 +40,9 @@ A skill lives in its own top-level directory and consists of:
   user transcripts of unknown shape.
 - When a skill mutates user state (CLAUDE.md, memory, `settings.json`, hooks), apply
   changes only after explicit user approval, lowest-blast-radius first.
+- When editing any `SKILL.md` or file under `references/`, prefer moving verbose detail
+  into `references/` rather than expanding `SKILL.md` inline. `SKILL.md` should remain a
+  concise procedure with pointers to reference files; all lengthy detail lives in `references/`.
 
 ## Running a skill's scripts during development
 

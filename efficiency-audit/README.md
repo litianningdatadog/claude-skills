@@ -10,12 +10,14 @@ automation candidates, and failing hooks — then proposes and applies concrete 
 ## How it works
 
 Pipeline: **analyze + score files → draft rules → report → plan → act → verify → (opt-in) Karpathy merge**.
-Two scripts run in Phase 1: `analyze_conversations.py` scans transcripts for friction patterns,
-and `score_efficiency.py` scores your `CLAUDE.md` / `MEMORY.md` on a 0.0–1.0 efficiency scale
-(files ≥ 5000 lines are flagged as Critical Context Blockers). Claude drafts concrete proposed
-`CLAUDE.md` rules for the top correction groups, synthesizes a prioritized report, applies
-approved changes following a strict **Plan → Act → Verify** cycle, and finally offers an opt-in
-smart merge of
+Phase 1 runs three checks: a terminal-title setup check, `analyze_conversations.py` scanning
+transcripts for friction patterns, and `score_efficiency.py` scoring your `CLAUDE.md` /
+`MEMORY.md` on a 0.0–1.0 efficiency scale (files ≥ 5000 lines are flagged as Critical Context
+Blockers). Claude drafts concrete proposed `CLAUDE.md` rules for the top correction groups,
+**always asking you to confirm the target file** before adding anything to the checklist
+(global `~/.claude/CLAUDE.md` or project-specific — never routed silently). Changes are
+applied following a strict **Plan → Act → Verify** cycle. Phase 5 offers an opt-in smart
+merge of
 [Karpathy-inspired behavioral guidelines](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md)
 into your `CLAUDE.md` (deduplicated against your existing rules — not blindly appended).
 
@@ -68,7 +70,10 @@ This lets you measure whether CLAUDE.md fixes are actually reducing friction ove
 
 ### Scoring CLAUDE.md / MEMORY.md for bloat
 
-`score_efficiency.py` applies piecewise linear interpolation to give any file a 0.0–1.0 score:
+`score_efficiency.py` applies piecewise linear interpolation to give any file a 0.0–1.0 score.
+The skill resolves the project `MEMORY.md` path automatically via `resolve_memory_path.py`,
+which honours the `autoMemoryDirectory` setting and derives the project key from the git root
+(not `cwd`, so subdirectory runs still find the right memory directory).
 
 ```bash
 python3 scripts/score_efficiency.py ~/.claude/CLAUDE.md        # single file
@@ -99,6 +104,10 @@ each a list of groups sorted by frequency. Each group carries:
 | `top_project` | The project where this friction occurred most |
 | `examples` | Up to 3 representative messages (whitespace-collapsed) |
 | `preceding_action` | What Claude said immediately before the correction (`corrections` only) — the causal trigger used to draft targeted CLAUDE.md rules |
+
+`terminal_title_skill_missing` and `terminal_title_not_configured` surface terminal-title
+setup gaps (see [`references/terminal-title-check.md`](references/terminal-title-check.md)
+for detection logic and known limitations with conflicting plugins).
 
 `hook_errors` lists failing hooks (name, exit code, stderr). System-generated noise
 (context-compaction notices, slash-command and skill-body injections, security-review
@@ -134,12 +143,16 @@ efficiency-audit/
 ├── SKILL.md                              # canonical agent instructions (5-phase procedure)
 ├── README.md                             # this file
 ├── references/
+│   ├── category-guide.md                 # Phase 2 category interpretation (loaded during synthesis)
+│   ├── claude-md-routing.md              # routing tiers + always-ask confirmation (loaded in Phase 3)
 │   ├── governance.md                     # SOSA™ rules — loaded by agent before Phase 4
-│   ├── karpathy-guardrails.md            # 4 behavioral principles — loaded when checking own behavior
+│   ├── karpathy-guardrails.md            # 4 behavioral principles + Phase 5 merge procedure
 │   ├── noise-filters.md                  # false-positive filter catalog — loaded when adding filters
-│   └── recipe-book.md                    # 4-step CLAUDE.md refactor procedure — loaded when >200 lines
+│   ├── recipe-book.md                    # 4-step CLAUDE.md refactor procedure — loaded when >200 lines
+│   └── terminal-title-check.md           # terminal-title detection, conflict check, hook proposal
 └── scripts/
     ├── analyze_conversations.py          # transcript analyzer CLI
+    ├── resolve_memory_path.py            # resolves project MEMORY.md path (git root + autoMemoryDirectory)
     ├── score_efficiency.py               # file byte-efficiency scorer (piecewise linear)
     ├── test_analyze_conversations.py     # unittest suite
     └── test_score_efficiency.py          # unittest suite for scorer

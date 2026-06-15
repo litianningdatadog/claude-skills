@@ -44,3 +44,19 @@ pass. Do not declare a task complete until the outcome can be observed or measur
 If the audit output or any generated content violates these four rules (e.g. a proposed
 CLAUDE.md block that adds speculative rules, or a Phase 4 change that touches more than was
 asked), call it out explicitly before proceeding: `[GUARDRAIL: ...]`.
+
+---
+
+## Phase 5 — Merge procedure (if user agrees)
+
+1. **Read** the user's current `CLAUDE.md` (global `~/.claude/CLAUDE.md` or project-level).
+2. **Fetch** the Karpathy guidelines from the source URL above (WebFetch; fall back to asking
+   the user to paste if unavailable).
+3. **Merge** using LLM reasoning — do NOT blindly append:
+   - **Deduplicate**: if a user rule already covers a principle, mark it covered and skip.
+   - **Preserve** the user's existing rules verbatim — never rephrase or reorder them.
+   - **Add only what is genuinely new** — label each added block clearly.
+   - **Produce structured output** with headings like `## Coding discipline`,
+     `## Task execution`, `## Change scope`.
+4. **Show** the full merged result and a diff summary. Wait for approval before writing.
+5. Apply via the Plan → Act → Verify cycle (Phase 4 rules apply).
