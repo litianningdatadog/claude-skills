@@ -5,7 +5,7 @@ it, then list / search / complete / update it later. Notes are centralized markd
 files enriched with date, project, directory, and git metadata — fuzzy-searchable, with
 references and time/location reminders. Completing a note removes it.
 
-> **Canonical behavior lives in [`SKILL.md`](SKILL.md).** This README covers human-facing
+> **Canonical behavior lives in [`SKILL.md`](skills/quicknotes/SKILL.md).** This README covers human-facing
 > install, the `qn` CLI, the `/qn` command, and tests. If the two disagree, `SKILL.md` wins.
 
 ## Four ways in (by latency / context)
@@ -44,20 +44,24 @@ Bump pgbouncer default_pool_size; current value starves the worker pool.
 
 ## Install
 
-```bash
-cp -R quicknotes ~/.claude/skills/
+```
+/plugin marketplace add litianningdatadog/claude-marketplace
+/plugin install quicknotes@litianningdatadog-marketplace
 ```
 
-Optional extras:
+Optional extras (run after plugin install):
 
 ```bash
+# Resolve the installed plugin path:
+PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/litianningdatadog-marketplace/quicknotes/*/ | head -1)
+
 # 1. `qn` shell CLI for instant capture from any terminal (opt-in, confirmation-gated):
-bash ~/.claude/skills/quicknotes/scripts/install_alias.sh
+bash "${PLUGIN_ROOT}/scripts/install_alias.sh"
 #    …or add the one-liner yourself:
-#    qn() { python3 "$HOME/.claude/skills/quicknotes/scripts/qn.py" "$@"; }
+#    qn() { python3 "${PLUGIN_ROOT}/scripts/qn.py" "$@"; }
 
 # 2. `/qn` slash command:
-cp ~/.claude/skills/quicknotes/commands/qn.md ~/.claude/commands/qn.md
+cp "${PLUGIN_ROOT}/commands/qn.md" ~/.claude/commands/qn.md
 
 # 3. Proactive reminders at session start (edits settings.json — do it knowingly):
 #    add a SessionStart hook running scripts/session_reminder.py (see SKILL.md for the entry).
@@ -109,7 +113,11 @@ cd scripts && python3 -m unittest test_notes_store test_qn
 
 ```
 quicknotes/
-├── SKILL.md                     # canonical agent instructions
+├── .claude-plugin/
+│   └── plugin.json              # plugin manifest
+├── skills/
+│   └── quicknotes/
+│       └── SKILL.md             # canonical agent instructions
 ├── README.md                    # this file
 ├── commands/qn.md               # /qn slash command wrapper
 └── scripts/

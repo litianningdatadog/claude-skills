@@ -1,13 +1,10 @@
 # claude-marketplace
 
-A collection of [Claude Code](https://claude.com/claude-code) **Skills** — self-contained
-directories that extend Claude's capabilities with specialized, repeatable workflows.
+A collection of [Claude Code](https://claude.com/claude-code) **plugins** — installable via the `litianningdatadog-marketplace` plugin marketplace. Each plugin delivers a skill that extends Claude's capabilities with a specialized, repeatable workflow.
 
-Each skill is defined by a `SKILL.md` (the instructions Claude follows once the skill
-activates) plus any supporting scripts. The `SKILL.md` is the canonical spec for what a
-skill does; this README is the entry point for humans browsing or installing the repo.
+Each plugin has a `.claude-plugin/plugin.json` manifest and a `skills/<name>/SKILL.md` that becomes Claude's operating instructions once the skill activates. Supporting scripts live under `<plugin>/scripts/`. This README is the entry point for humans browsing or installing the repo.
 
-## Skills
+## Plugins
 
 | Skill | What it does |
 |-------|--------------|
