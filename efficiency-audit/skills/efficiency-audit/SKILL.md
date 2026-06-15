@@ -28,8 +28,16 @@ their stated concern is confirmed or not found in the data.
 ### Phase 1: Analyze
 
 **Session setup check — terminal title:** Read `references/terminal-title-check.md`
-(installed at `~/.claude/skills/efficiency-audit/references/terminal-title-check.md`) for
+(installed at `${PLUGIN_ROOT}/references/terminal-title-check.md`) for
 the detection commands, outcome interpretation, proposed rule text, and post-apply note.
+
+**Path resolver — run this first to set `PLUGIN_ROOT`:**
+
+```bash
+PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/litianningdatadog-marketplace/efficiency-audit/*/ 2>/dev/null | head -1)
+```
+
+Use `${PLUGIN_ROOT}` in all subsequent commands to reference scripts and reference files.
 
 Run the analysis script to extract patterns from the last 30 days of conversations. Default
 to scoping the audit to the **current project** so findings reflect the repo you're in —
@@ -37,7 +45,7 @@ pass the project's folder name to `--project` (matched as a substring of the sto
 transcript path, which is the cwd with `/` replaced by `-`, e.g. `claude-marketplace`):
 
 ```bash
-python3 ~/.claude/skills/efficiency-audit/scripts/analyze_conversations.py \
+python3 "${PLUGIN_ROOT}/scripts/analyze_conversations.py" \
   --days 30 \
   --project "$(basename "$PWD")" \
   --output json \
@@ -52,8 +60,8 @@ they exist). This produces a hard numeric score using piecewise linear interpola
 line-count control points {0→1.0, 300→1.0, 750→0.5, 5000→0.0}:
 
 ```bash
-MEMORY_MD=$(python3 ~/.claude/skills/efficiency-audit/scripts/resolve_memory_path.py 2>/dev/null)
-python3 ~/.claude/skills/efficiency-audit/scripts/score_efficiency.py \
+MEMORY_MD=$(python3 "${PLUGIN_ROOT}/scripts/resolve_memory_path.py" 2>/dev/null)
+python3 "${PLUGIN_ROOT}/scripts/score_efficiency.py" \
   .claude/CLAUDE.md ~/.claude/CLAUDE.md "$MEMORY_MD" \
   2>/dev/null
 ```
@@ -66,7 +74,7 @@ regardless of other findings.
 ### Phase 2: Synthesize Findings
 
 Read `references/category-guide.md` (installed at
-`~/.claude/skills/efficiency-audit/references/category-guide.md`) for the interpretation
+`${PLUGIN_ROOT}/references/category-guide.md`) for the interpretation
 of each output category (`corrections`, `missing_context`, `slow_start_context`,
 `automation_candidates`, `terminal_title_*`, `hook_errors`) and rule-drafting guidance.
 
@@ -80,7 +88,7 @@ of each output category (`corrections`, `missing_context`, `slow_start_context`,
   highest-value output — don't skip it.
 
 **Routing each proposed rule:** Read `references/claude-md-routing.md` (installed at
-`~/.claude/skills/efficiency-audit/references/claude-md-routing.md`) for the three scope
+`${PLUGIN_ROOT}/references/claude-md-routing.md`) for the three scope
 tiers (global / project-specific / ambiguous), when to ask the user, and the checklist
 entry format.
 
@@ -153,14 +161,14 @@ If the user agrees, follow the merge procedure in `references/karpathy-guardrail
 ## Karpathy Behavioral Guardrails
 
 **Read `references/karpathy-guardrails.md`** (installed at
-`~/.claude/skills/efficiency-audit/references/karpathy-guardrails.md`) **whenever you need
+`${PLUGIN_ROOT}/references/karpathy-guardrails.md`) **whenever you need
 to check your own behavior** against the four principles. Flag violations as `[GUARDRAIL: ...]`.
 These rules apply to every phase of the audit, not just Phase 5.
 
 ## Security & Governance (SOSA™)
 
 **Read `references/governance.md`** (installed at
-`~/.claude/skills/efficiency-audit/references/governance.md`) **before executing Phase 4.**
+`${PLUGIN_ROOT}/references/governance.md`) **before executing Phase 4.**
 It contains the full SOSA™ rules: protected files, no-batching, show-before-write, and
 no-silent-fallbacks. The Plan → Act → Verify cycle above enforces those rules procedurally.
 
@@ -168,13 +176,13 @@ no-silent-fallbacks. The Plan → Act → Verify cycle above enforces those rule
 
 Noise is filtered automatically during extraction. If a new format slips through, read
 `references/noise-filters.md` (installed at
-`~/.claude/skills/efficiency-audit/references/noise-filters.md`) for the current filter
+`${PLUGIN_ROOT}/references/noise-filters.md`) for the current filter
 list and instructions for adding a new pattern to `NOISE_PATTERNS`.
 
 ## File Bloat Remediation (Recipe Book Principle)
 
 If `CLAUDE.md` exceeds 200 lines after Phase 1, **read `references/recipe-book.md`**
-(installed at `~/.claude/skills/efficiency-audit/references/recipe-book.md`) for the full
+(installed at `${PLUGIN_ROOT}/references/recipe-book.md`) for the full
 4-step procedure. Run this *before* proposing new audit rules.
 
 ## Re-running the Audit

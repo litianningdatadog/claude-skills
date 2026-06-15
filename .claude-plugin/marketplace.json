@@ -1,0 +1,22 @@
+{
+  "name": "litianningdatadog-marketplace",
+  "description": "Claude Code skills for workflow automation, hook repair, and quick notes.",
+  "owner": { "name": "Tianning Li" },
+  "plugins": [
+    {
+      "name": "efficiency-audit",
+      "source": "./efficiency-audit",
+      "description": "Analyzes recent Claude Code transcripts to surface recurring inefficiencies."
+    },
+    {
+      "name": "hook-doctor",
+      "source": "./hook-doctor",
+      "description": "Inspects and repairs installed plugin hook configurations."
+    },
+    {
+      "name": "quicknotes",
+      "source": "./quicknotes",
+      "description": "Low-friction quick-note capture and management for Claude Code."
+    }
+  ]
+}

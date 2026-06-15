@@ -45,15 +45,15 @@ Failing hooks (e.g. `exit=127`, unquoted `${CLAUDE_PLUGIN_ROOT}`). **Don't repai
 First check whether the `hook-doctor` skill is installed:
 
 ```bash
-ls ~/.claude/skills/hook-doctor/SKILL.md 2>/dev/null && echo "installed" || echo "not_installed"
+ls ~/.claude/plugins/cache/litianningdatadog-marketplace/hook-doctor/*/skills/hook-doctor/SKILL.md 2>/dev/null | grep -q . && echo "installed" || echo "not_installed"
 ```
 
 - **Installed** → recommend running `/hook-doctor`. It scans all plugins, explains the blast
   radius, and applies fixes with explicit opt-in.
 - **Not installed** → surface in Phase 3:
   > "Hook errors were found but the `hook-doctor` skill is not installed. Install it from
-  > the [claude-marketplace repo](https://github.com/litianningdatadog/claude-marketplace) by copying
-  > `hook-doctor/` to `~/.claude/skills/`, then re-run `/efficiency-audit`."
+  > the [claude-marketplace repo](https://github.com/litianningdatadog/claude-marketplace): run
+  > `/plugin install hook-doctor@claude-marketplace`, then re-run `/efficiency-audit`."
 
 Errors are historical — they persist until they age out of the `--days` window. After
 fixing, a fresh session plus a small `--days` re-run confirms no new failures appear.

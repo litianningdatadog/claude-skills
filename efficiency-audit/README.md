@@ -4,7 +4,7 @@ Analyzes recent Claude Code conversation transcripts to surface recurring ineffi
 repeated corrections, context you re-explain every session, slow per-session orientation,
 automation candidates, and failing hooks — then proposes and applies concrete fixes.
 
-> **Canonical behavior lives in [`SKILL.md`](SKILL.md).** This README covers human-facing
+> **Canonical behavior lives in [`SKILL.md`](skills/efficiency-audit/SKILL.md).** This README covers human-facing
 > install, direct CLI usage, and testing. If the two ever disagree, `SKILL.md` wins.
 
 ## How it works
@@ -30,20 +30,16 @@ See `SKILL.md` for the full five-phase procedure Claude follows.
 
 ## Install
 
-```bash
-cp -R efficiency-audit ~/.claude/skills/
+```
+/plugin marketplace add litianningdatadog/claude-marketplace
+/plugin install efficiency-audit@litianningdatadog-marketplace
 ```
 
 Once installed, trigger it in any Claude Code session with phrases like
 "audit my usage", "improve my workflow", or "what am I repeating", or run
 `/efficiency-audit` if your client exposes skills as commands.
 
-> **Keep the installed copy in sync.** The skill runs from `~/.claude/skills/efficiency-audit/`,
-> not the repo. After pulling updates, re-run the `cp -R` above — otherwise the agent runs a
-> stale version that's missing new phases and guardrails. A quick check:
-> ```bash
-> wc -l ~/.claude/skills/efficiency-audit/SKILL.md  # should match the repo
-> ```
+Updates are applied automatically — run `/plugin marketplace update` to pull the latest version.
 
 ## Running the analyzer directly
 
@@ -140,7 +136,11 @@ cd scripts && python3 -m unittest test_analyze_conversations test_score_efficien
 
 ```
 efficiency-audit/
-├── SKILL.md                              # canonical agent instructions (5-phase procedure)
+├── .claude-plugin/
+│   └── plugin.json                       # plugin manifest
+├── skills/
+│   └── efficiency-audit/
+│       └── SKILL.md                      # canonical agent instructions (5-phase procedure)
 ├── README.md                             # this file
 ├── references/
 │   ├── category-guide.md                 # Phase 2 category interpretation (loaded during synthesis)

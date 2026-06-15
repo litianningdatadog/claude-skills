@@ -5,7 +5,7 @@ files under `~/.claude/plugins/marketplaces/<marketplace>/<plugin>/`. Scans ever
 plugin for known hook-config problems, reports them, and (with explicit opt-in) applies safe,
 idempotent fixes.
 
-> **Canonical behavior lives in [`SKILL.md`](SKILL.md).** This README covers human-facing
+> **Canonical behavior lives in [`SKILL.md`](skills/hook-doctor/SKILL.md).** This README covers human-facing
 > install, direct CLI usage, and testing. If the two ever disagree, `SKILL.md` wins.
 
 Not to be confused with `hookify` (authors *new* behavior-prevention hooks) or `update-config`
@@ -31,8 +31,9 @@ fixable repairs (quoting + `chmod +x`); report-only findings are left for manual
 
 ## Install
 
-```bash
-cp -R hook-doctor ~/.claude/skills/
+```
+/plugin marketplace add litianningdatadog/claude-marketplace
+/plugin install hook-doctor@litianningdatadog-marketplace
 ```
 
 Trigger it with phrases like "fix my hooks", "why did my hook fail", "check my plugin hooks",
@@ -94,7 +95,11 @@ cd scripts && python3 -m unittest test_inspect_hooks
 
 ```
 hook-doctor/
-├── SKILL.md                       # canonical agent instructions (the skill spec)
+├── .claude-plugin/
+│   └── plugin.json                # plugin manifest
+├── skills/
+│   └── hook-doctor/
+│       └── SKILL.md               # canonical agent instructions (the skill spec)
 ├── README.md                      # this file
 └── scripts/
     ├── inspect_hooks.py           # hook-config inspector/repairer CLI

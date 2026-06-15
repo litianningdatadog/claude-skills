@@ -5,8 +5,13 @@ Verifies that the `terminal-title` skill is wired up so session titles are set a
 ## Detection (Phase 1)
 
 ```bash
-# Is the skill installed?
-ls ~/.claude/skills/terminal-title/scripts/set_title.sh 2>/dev/null && echo "installed" || echo "not_installed"
+# Is the skill installed? (checks both legacy skills path and plugin cache)
+if ls ~/.claude/skills/terminal-title/scripts/set_title.sh 2>/dev/null \
+   || ls ~/.claude/plugins/cache/*/terminal-title/*/scripts/set_title.sh 2>/dev/null | grep -q .; then
+  echo "installed"
+else
+  echo "not_installed"
+fi
 
 # Does the iterm2-notifications plugin also own the terminal title?
 # If yes, any UserPromptSubmit hook will be overridden and the feature is blocked.

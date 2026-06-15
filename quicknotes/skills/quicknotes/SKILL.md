@@ -30,7 +30,8 @@ another terminal (see README) — same store, no Claude round-trip.
 Capture is frictionless: anything that isn't a management verb is the note. Run:
 
 ```bash
-python3 ~/.claude/skills/quicknotes/scripts/qn.py <the note text> [#tag …] [--tag T]
+PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/litianningdatadog-marketplace/quicknotes/*/ 2>/dev/null | head -1)
+python3 "${PLUGIN_ROOT}/scripts/qn.py" <the note text> [#tag …] [--tag T]
 ```
 
 Tags can be set at capture two ways: **inline `#hashtags`** in the text (stripped from the
@@ -62,7 +63,7 @@ qn here                          # notes for the current project/dir (location r
 qn ref <id|fuzzy> <id|fuzzy>     # link two notes (bidirectional)
 ```
 
-(`qn …` above = `python3 ~/.claude/skills/quicknotes/scripts/qn.py …`.)
+(`qn …` above = `python3 "${PLUGIN_ROOT}/scripts/qn.py" …`, where `PLUGIN_ROOT` is resolved via the preamble above.)
 
 Lifecycle is simple: a note is **active** until it's done. `qn done` **removes the note file
 from disk** (a hard delete — there is no cancelled/archived state). The `~/.quicknotes` store
@@ -79,7 +80,7 @@ is git-init'd, so a committed note remains recoverable from git history; warn th
 
   ```json
   { "hooks": { "SessionStart": [ { "hooks": [
-    { "type": "command", "command": "python3 \"${HOME}/.claude/skills/quicknotes/scripts/session_reminder.py\"" }
+    { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_reminder.py\"" }
   ] } ] } }
   ```
 

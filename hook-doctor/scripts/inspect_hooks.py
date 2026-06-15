@@ -272,11 +272,17 @@ def gather_sources(args) -> tuple[list[tuple[Path, Path | None]], str]:
                 f"plugin hooks under {root}")
     project = Path(args.project).expanduser() if args.project else Path.cwd()
     settings = find_settings_files(project)
-    plugins = find_hooks_files(Path.home() / ".claude" / "plugins" / "marketplaces")
-    sources = [(f, project) for f in settings + plugins]
+    # Scan both the legacy marketplaces dir and the newer versioned plugin cache
+    plugin_files: list[Path] = []
+    for plugins_dir in [
+        Path.home() / ".claude" / "plugins" / "marketplaces",
+        Path.home() / ".claude" / "plugins" / "cache",
+    ]:
+        plugin_files.extend(find_hooks_files(plugins_dir))
+    sources = [(f, project) for f in settings + plugin_files]
     return (sources,
             f"effective hooks for {project} "
-            f"({len(settings)} settings file(s) + {len(plugins)} installed plugin(s))")
+            f"({len(settings)} settings file(s) + {len(plugin_files)} installed plugin(s))")
 
 
 def main():
