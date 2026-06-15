@@ -15,22 +15,41 @@ skill does; this README is the entry point for humans browsing or installing the
 | [`hook-doctor`](hook-doctor/) | Inspects and repairs installed plugin hook configurations (`hooks.json`). Detects unquoted `${CLAUDE_PLUGIN_ROOT}` commands that fail in agent-mode, reports them, and applies safe idempotent fixes with explicit opt-in. |
 | [`quicknotes`](quicknotes/) | Low-friction quick-note capture and management. Centralized markdown notes (`~/.quicknotes`) with date/project/dir metadata, tags, fuzzy search, references, and time/location reminders; completing a note deletes it. Capture via the `qn` CLI (instant), `/qn`, or natural language. |
 
-## Installing a skill
+## Marketplace
 
-Skills are discovered by Claude Code under `~/.claude/skills/`. To install one from this
-repo, copy its directory there:
+This repo is a public skill marketplace. Browse skills at **https://litianningdatadog.github.io/claude-skills/**
+
+### Install the CLI (one-time)
 
 ```bash
-cp -R <skill> ~/.claude/skills/
+curl -fsSL https://litianningdatadog.github.io/claude-skills/install.sh | bash
 ```
 
-A skill activates automatically when your request matches the triggers in its `SKILL.md`
-frontmatter `description`. See the skill's own README (linked in the table above) for its
-triggers, usage, and any flags.
+### Install a skill
 
-> Note: a `SKILL.md` references its own scripts by their **installed** path
-> (`~/.claude/skills/<name>/scripts/...`). When developing in this repo, run scripts from
-> the repo path instead.
+```bash
+claude-skills list                   # browse available skills
+claude-skills install efficiency-audit
+```
+
+Skills are installed to `~/.claude/skills/` and activate automatically in the next Claude Code session.
+
+### Commands
+
+```bash
+claude-skills add <url>      # add a marketplace source
+claude-skills list           # list skills from all sources
+claude-skills install <name> # install a skill
+claude-skills update         # update all CLI-installed skills
+claude-skills remove <name>  # remove a skill
+claude-skills sources        # list registered sources
+```
+
+### Manual install (no CLI)
+
+```bash
+cp -R <skill-dir> ~/.claude/skills/
+```
 
 ## Development
 
@@ -46,6 +65,6 @@ directory. Per-skill setup, CLI usage, and test commands live in each skill's RE
    `description` — it's the only text read when deciding whether to activate.
 3. Put supporting code under `<skill>/scripts/`; reference it from `SKILL.md` by its
    installed path.
-4. Add the skill to the table above.
+4. Add the skill to the table in the Skills section above.
 
 See [`CLAUDE.md`](CLAUDE.md) for the conventions Claude follows when working in this repo.
