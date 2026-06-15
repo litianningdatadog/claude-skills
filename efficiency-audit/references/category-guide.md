@@ -41,6 +41,19 @@ See `references/terminal-title-check.md` for proposed rule text, routing, and po
 
 ## `hook_errors`
 
-Failing hooks (e.g. `exit=127`, unquoted `${CLAUDE_PLUGIN_ROOT}`). **Don't repair here** —
-hand off to the `hook-doctor` skill. Errors are historical; a `--days` re-run after fixing
-confirms no new failures.
+Failing hooks (e.g. `exit=127`, unquoted `${CLAUDE_PLUGIN_ROOT}`). **Don't repair here.**
+First check whether the `hook-doctor` skill is installed:
+
+```bash
+ls ~/.claude/skills/hook-doctor/SKILL.md 2>/dev/null && echo "installed" || echo "not_installed"
+```
+
+- **Installed** → recommend running `/hook-doctor`. It scans all plugins, explains the blast
+  radius, and applies fixes with explicit opt-in.
+- **Not installed** → surface in Phase 3:
+  > "Hook errors were found but the `hook-doctor` skill is not installed. Install it from
+  > the [claude-skills repo](https://github.com/litianningdatadog/claude-skills) by copying
+  > `hook-doctor/` to `~/.claude/skills/`, then re-run `/efficiency-audit`."
+
+Errors are historical — they persist until they age out of the `--days` window. After
+fixing, a fresh session plus a small `--days` re-run confirms no new failures appear.
