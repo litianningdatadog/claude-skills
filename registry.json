@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-06-15T19:15:11Z",
+  "source": "https://github.com/litianningdatadog/claude-skills",
+  "skills": [
+    {
+      "name": "efficiency-audit",
+      "description": "Analyzes recent Claude Code conversation transcripts to surface recurring inefficiencies, then produces a concrete improvement plan and applies it. Use when the user wants to improve their Claude Code workflow, reduce repeated corrections, eliminate missing-context frustration, or automate recurring patterns. Trigger phrases: 'improve my workflow', 'audit my usage', 'what am I repeating', 'efficiency audit', 'review my conversations', or any request to update CLAUDE.md based on observed patterns.",
+      "path": "efficiency-audit",
+      "version": null,
+      "has_scripts": true
+    },
+    {
+      "name": "hook-doctor",
+      "description": "Inspects and repairs Claude Code hook configurations \u2014 plugin hooks.json and project/user settings.json. Use when a hook is failing or misconfigured, when an efficiency audit reports hook_errors, or when the user asks to check, diagnose, or fix hooks. Detects unquoted ${CLAUDE_PLUGIN_ROOT}/${CLAUDE_PROJECT_DIR} commands that fail in agent-mode (exit 127, '/bin/sh: .../Library/Application: No such file'), missing/non-executable scripts, unknown events, and invalid JSON. Trigger phrases: 'fix my hooks', 'hook is broken', 'why did my hook fail', 'check my plugin hooks', 'diagnose hook errors', 'hook exit 127'.",
+      "path": "hook-doctor",
+      "version": null,
+      "has_scripts": true
+    },
+    {
+      "name": "quicknotes",
+      "description": "Capture and manage quick notes with near-zero friction. Use when the user wants to jot down a thought, make a note, add a to-do/reminder, or list/search/complete/update their notes. Notes are centralized markdown files with date/project/dir metadata, fuzzy-searchable, with references and time/location reminders; completing a note removes it. Trigger phrases: 'qn', 'quicknotes', 'write a quick note', 'quick note', 'jot this down', 'note to self', 'remind me to', 'add a note', 'list my notes', 'mark note done', 'what notes do I have', 'notes for this project'.",
+      "path": "quicknotes",
+      "version": null,
+      "has_scripts": true
+    }
+  ]
+}
