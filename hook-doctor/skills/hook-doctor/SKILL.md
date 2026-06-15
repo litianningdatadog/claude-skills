@@ -36,7 +36,8 @@ Ask before scanning:
 ### 1. Scan
 
 ```bash
-python3 ~/.claude/skills/hook-doctor/scripts/inspect_hooks.py 2>/dev/null
+PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/claude-marketplace/hook-doctor/*/ 2>/dev/null | head -1)
+python3 "${PLUGIN_ROOT}/scripts/inspect_hooks.py" 2>/dev/null
 ```
 
 Flags: `--project <dir>` (default: cwd) · `--root <dir>` (plugin tree only, skips settings.json).
@@ -54,7 +55,8 @@ Offer: **(a)** fix locally · **(b)** upstream PR · **(c)** both · **(d)** ski
 2. **Act**:
 
 ```bash
-python3 ~/.claude/skills/hook-doctor/scripts/inspect_hooks.py --apply 2>/dev/null
+PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/claude-marketplace/hook-doctor/*/ 2>/dev/null | head -1)
+python3 "${PLUGIN_ROOT}/scripts/inspect_hooks.py" --apply 2>/dev/null
 ```
 
 Applies fixable repairs only (`unquoted_path_var`, `script_not_executable`). Report-only
