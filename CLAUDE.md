@@ -14,19 +14,29 @@ directly by the Claude Code agent runtime. Scripts that have tests use stdlib `u
 cd efficiency-audit/scripts && python3 -m unittest test_analyze_conversations
 ```
 
-## Skill anatomy
+## Plugin anatomy
 
-A skill lives in its own top-level directory and consists of:
+A plugin lives in its own top-level directory and consists of:
 
-- `SKILL.md` — required. YAML frontmatter with two fields:
+- `.claude-plugin/plugin.json` — required. Plugin manifest with `name` and `description`.
+- `skills/<name>/SKILL.md` — required. YAML frontmatter with two fields:
   - `name`: the skill's invocation slug (kebab-case, matches the directory name).
   - `description`: load-bearing. This is the **only** text the agent reads to decide
     whether to activate the skill, so it must pack in concrete trigger phrases and use
     cases. The Markdown body below the frontmatter is loaded *only after* activation and
     becomes the agent's operating instructions.
-- `scripts/` — optional supporting code (e.g. Python) that the `SKILL.md` body invokes by
-  absolute path. The body references scripts at their *installed* location
-  (`~/.claude/skills/<name>/scripts/...`), not their path in this repo.
+- `scripts/` — optional supporting code (e.g. Python) that the `SKILL.md` body invokes.
+  Reference scripts via a dynamic plugin-root resolver (not a hardcoded path), since
+  plugins are installed to a versioned cache at
+  `~/.claude/plugins/cache/claude-marketplace/<name>/<version>/`:
+
+  ```bash
+  PLUGIN_ROOT=$(ls -dt ~/.claude/plugins/cache/claude-marketplace/<name>/*/ 2>/dev/null | head -1)
+  python3 "${PLUGIN_ROOT}/scripts/<script>.py"
+  ```
+
+  In hook config (not SKILL.md prose), use `${CLAUDE_PLUGIN_ROOT}` instead — it is
+  expanded by the hook runtime to the correct installed path.
 
 ## Conventions when authoring or editing skills
 
@@ -54,5 +64,5 @@ python3 efficiency-audit/scripts/analyze_conversations.py --days 30 --output tex
 
 The `analyze_conversations.py` script scans `~/.claude/projects/**/*.jsonl` (Claude Code's
 per-session transcript logs). Useful flags: `--days N`, `--project <substring>`,
-`--output json|text`. Note the body of `SKILL.md` invokes it from the *installed* path
-(`~/.claude/skills/...`), so test against the repo path while developing.
+`--output json|text`. Note the body of `SKILL.md` invokes it via the `PLUGIN_ROOT` resolver above (installed
+path). When developing, run scripts directly from the repo path instead.
