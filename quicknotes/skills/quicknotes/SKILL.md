@@ -80,7 +80,7 @@ is git-init'd, so a committed note remains recoverable from git history; warn th
 
   ```json
   { "hooks": { "SessionStart": [ { "hooks": [
-    { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session_reminder.py" }
+    { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_reminder.py\"" }
   ] } ] } }
   ```
 

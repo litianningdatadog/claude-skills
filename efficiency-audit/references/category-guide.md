@@ -45,7 +45,7 @@ Failing hooks (e.g. `exit=127`, unquoted `${CLAUDE_PLUGIN_ROOT}`). **Don't repai
 First check whether the `hook-doctor` skill is installed:
 
 ```bash
-ls ~/.claude/plugins/cache/claude-marketplace/hook-doctor/*/skills/hook-doctor/SKILL.md 2>/dev/null | grep -q . && echo "installed" || echo "not_installed"
+ls ~/.claude/plugins/cache/litianningdatadog-marketplace/hook-doctor/*/skills/hook-doctor/SKILL.md 2>/dev/null | grep -q . && echo "installed" || echo "not_installed"
 ```
 
 - **Installed** → recommend running `/hook-doctor`. It scans all plugins, explains the blast
