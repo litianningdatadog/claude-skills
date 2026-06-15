@@ -94,6 +94,178 @@ print(f"Added source: {name}  ({url})")
 PYEOF
 }
 
+# ── cmd: list ────────────────────────────────────────────────────────────────
+
+cmd_list() {
+    init_sources
+    python3 - "$SOURCES_FILE" << 'PYEOF'
+import json, sys, urllib.request
+sources_file = sys.argv[1]
+with open(sources_file) as f:
+    data = json.load(f)
+sources = data.get('sources', [])
+if not sources:
+    print("No sources registered. Run: claude-skills add <url>")
+    sys.exit(0)
+
+all_skills = []
+for source in sources:
+    try:
+        with urllib.request.urlopen(source['registry_url'], timeout=10) as resp:
+            registry = json.loads(resp.read())
+        for skill in registry.get('skills', []):
+            all_skills.append({'source': source['name'], **skill})
+    except Exception as e:
+        print(f"warning: failed to fetch {source['registry_url']}: {e}", file=sys.stderr)
+
+name_counts = {}
+for s in all_skills:
+    name_counts[s['name']] = name_counts.get(s['name'], 0) + 1
+
+for s in all_skills:
+    qualified = name_counts[s['name']] > 1
+    display = f"{s['source']}/{s['name']}" if qualified else s['name']
+    ver = f" ({s['version']})" if s.get('version') else ''
+    print(f"{display}{ver}")
+    print(f"  {s['description'][:100]}")
+    print()
+PYEOF
+}
+
+# ── cmd: install ──────────────────────────────────────────────────────────────
+
+cmd_install() {
+    local arg="${1:-}"
+    [ -n "$arg" ] || die "Usage: claude-skills install [source/]<name>"
+    ensure_dirs
+    init_sources
+    init_installed
+    python3 - "$SOURCES_FILE" "$INSTALLED_FILE" "$SKILLS_DIR" "$TMP_DIR" "$arg" << 'PYEOF'
+import json, os, sys, shutil, tarfile, urllib.request
+from datetime import datetime, timezone
+
+sources_file, installed_file, skills_dir, tmp_dir, arg = sys.argv[1:]
+
+with open(sources_file) as f:
+    sources_data = json.load(f)
+
+matches = []
+for source in sources_data['sources']:
+    try:
+        with urllib.request.urlopen(source['registry_url'], timeout=10) as resp:
+            registry = json.loads(resp.read())
+    except Exception as e:
+        print(f"warning: failed to fetch {source['registry_url']}: {e}", file=sys.stderr)
+        continue
+    for skill in registry.get('skills', []):
+        qualified = f"{source['name']}/{skill['name']}"
+        if arg in (skill['name'], qualified):
+            matches.append({'skill': skill, 'source': source,
+                            'qualified': qualified,
+                            'registry_updated_at': registry.get('updated_at', '')})
+
+if not matches:
+    print(f"error: skill '{arg}' not found", file=sys.stderr); sys.exit(1)
+if len(matches) > 1:
+    names = ', '.join(m['qualified'] for m in matches)
+    print(f"error: '{arg}' is ambiguous: {names}", file=sys.stderr)
+    print(f"Try: claude-skills install {matches[0]['qualified']}", file=sys.stderr)
+    sys.exit(1)
+
+m = matches[0]
+skill, source = m['skill'], m['source']
+skill_name, skill_path = skill['name'], skill['path']
+dest = os.path.join(skills_dir, skill_name)
+
+with open(installed_file) as f:
+    installed_data = json.load(f)
+is_managed = any(i['name'] == skill_name for i in installed_data['installed'])
+if os.path.exists(dest) and not is_managed:
+    print(f"warning: {dest} exists but was not installed by claude-skills — replacing")
+
+repo_url = source['repo_url'].rstrip('/')
+repo_name = repo_url.split('/')[-1]
+tarball_url = f"{repo_url}/archive/refs/heads/main.tar.gz"
+
+tarball_path = os.path.join(tmp_dir, f"{skill_name}.tar.gz")
+print(f"Downloading {skill_name} from {source['name']}...")
+with urllib.request.urlopen(tarball_url, timeout=60) as resp:
+    with open(tarball_path, 'wb') as f:
+        f.write(resp.read())
+
+extract_tmp = os.path.join(tmp_dir, f"{skill_name}_extract")
+os.makedirs(extract_tmp, exist_ok=True)
+prefix = f"{repo_name}-main/{skill_path}/"
+
+with tarfile.open(tarball_path, 'r:gz') as tf:
+    members = []
+    for member in tf.getmembers():
+        if not member.name.startswith(prefix):
+            continue
+        member.name = member.name[len(f"{repo_name}-main/"):]
+        # Guard against path traversal in untrusted tarballs
+        if os.path.isabs(member.name) or '..' in member.name.split('/'):
+            continue
+        members.append(member)
+    tf.extractall(extract_tmp, members=members)
+
+extracted = os.path.join(extract_tmp, skill_path)
+if not os.path.isdir(extracted):
+    print(f"error: skill directory '{skill_path}' not found in tarball", file=sys.stderr); sys.exit(1)
+
+staging = os.path.join(tmp_dir, f"{skill_name}_staging")
+if os.path.exists(staging):
+    shutil.rmtree(staging)
+shutil.copytree(extracted, staging)
+
+# Atomic replace: move old aside, move new into place, then remove old
+old_backup = dest + '.old'
+if os.path.exists(old_backup):
+    shutil.rmtree(old_backup)
+if os.path.exists(dest):
+    shutil.move(dest, old_backup)
+shutil.move(staging, dest)
+if os.path.exists(old_backup):
+    shutil.rmtree(old_backup)
+
+now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+installed_data['installed'] = [i for i in installed_data['installed'] if i['name'] != skill_name]
+installed_data['installed'].append({'name': skill_name, 'source': source['name'],
+                                     'installed_at': now,
+                                     'registry_updated_at': m['registry_updated_at']})
+with open(installed_file, 'w') as f:
+    json.dump(installed_data, f, indent=2)
+
+shutil.rmtree(extract_tmp)
+os.remove(tarball_path)
+print(f"Installed {skill_name} → {dest}")
+print("Open a new Claude Code session to activate the skill.")
+PYEOF
+}
+
+# ── cmd: remove ───────────────────────────────────────────────────────────────
+
+cmd_remove() {
+    local name="${1:-}"
+    [ -n "$name" ] || die "Usage: claude-skills remove <name>"
+    init_installed
+    local dest="${SKILLS_DIR}/${name}"
+    [ -d "$dest" ] || die "Skill not installed: ${name}"
+    rm -rf "$dest"
+    python3 - "$INSTALLED_FILE" "$name" << 'PYEOF'
+import json, sys
+path, name = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
+before = len(data['installed'])
+data['installed'] = [i for i in data['installed'] if i['name'] != name]
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+suffix = '' if len(data['installed']) < before else ' (was not CLI-managed)'
+print(f"Removed {name}{suffix}")
+PYEOF
+}
+
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 
 ensure_dirs
@@ -102,6 +274,9 @@ init_installed
 
 case "${1:-}" in
     add)     cmd_add "${2:-}" ;;
+    list)    cmd_list ;;
+    install) cmd_install "${2:-}" ;;
+    remove)  cmd_remove "${2:-}" ;;
     sources) cmd_sources ;;
     *)
         echo "claude-skills — plugin marketplace CLI for Claude Code"
