@@ -1,0 +1,4 @@
+{
+  "name": "efficiency-audit",
+  "description": "Analyzes recent Claude Code transcripts to surface recurring inefficiencies."
+}
