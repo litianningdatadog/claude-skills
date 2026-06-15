@@ -1,0 +1,76 @@
+# .github/workflows/deploy-registry.yml
+name: Deploy Registry
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate registry.json
+        run: python3 scripts/generate_registry.py
+
+      - name: Commit updated registry.json if changed
+        run: |
+          if git diff --quiet registry.json; then
+            echo "registry.json unchanged, skipping commit"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add registry.json
+            git commit -m "chore: regenerate registry.json [skip ci]"
+            git push
+          fi
+
+      - name: Upload registry.json artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: registry-json
+          path: registry.json
+
+  deploy-pages:
+    needs: generate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download registry.json from generate job
+        uses: actions/download-artifact@v4
+        with:
+          name: registry-json
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build Pages artifact
+        run: |
+          mkdir -p _site
+          cp registry.json _site/
+          cp install.sh _site/
+          cp claude-skills _site/
+          cp index.html _site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
