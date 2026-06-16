@@ -8,7 +8,7 @@ Each plugin has a `.claude-plugin/plugin.json` manifest and a `skills/<name>/SKI
 
 | Skill | What it does |
 |-------|--------------|
-| [`efficiency-audit`](efficiency-audit/) | Analyzes recent Claude Code transcripts to surface recurring friction — corrections, re-explained context, failing hooks — grouped by recurrence count and dominant project. Drafts concrete proposed `CLAUDE.md` rules for top findings before applying them with your approval. |
+| [`efficiency-audit`](efficiency-audit/) | Analyzes recent Claude Code transcripts to surface recurring friction — corrections, re-explained context, tool-call failures, failing hooks — grouped by recurrence count and dominant project. LLM synthesis drafts ranked `CLAUDE.md` rules with token-savings estimates; idempotent marker blocks prevent duplicate accumulation across re-runs. |
 | [`hook-doctor`](hook-doctor/) | Inspects and repairs installed plugin hook configurations (`hooks.json`). Detects unquoted `${CLAUDE_PLUGIN_ROOT}` commands that fail in agent-mode, reports them, and applies safe idempotent fixes with explicit opt-in. |
 | [`quicknotes`](quicknotes/) | Low-friction quick-note capture and management. Centralized markdown notes (`~/.quicknotes`) with date/project/dir metadata, tags, fuzzy search, references, and time/location reminders; completing a note deletes it. Capture via the `qn` CLI (instant), `/qn`, or natural language. |
 

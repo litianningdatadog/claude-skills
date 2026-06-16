@@ -23,6 +23,9 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 
+BASELINE_PATH = Path.home() / ".claude" / "efficiency-audit-baseline.json"
+
+
 CORRECTION_PATTERNS = [
     r"\bno[,!]?\s+(don'?t|do not|stop|never)\b",
     r"\b(don'?t|do not|stop|never|avoid)\s+(do(ing)?|use|run|add|create|write)\b",
@@ -161,6 +164,27 @@ def _join_text_content(content) -> str:
     return content or ""
 
 
+def classify_tool_error(tool_name: str, error_text: str) -> str:
+    """Classify a tool failure into a category from error text and tool name."""
+    t = error_text.lower()
+    if "file has not been read yet" in t or "read it first before writing" in t:
+        return "unread_write"
+    if "request interrupted by user" in t or "operation was cancelled" in t:
+        return "user_interrupted"
+    if "permission denied" in t:
+        return "permission_denied"
+    if ("pathspec" in t and "did not match" in t) or "no such file or directory" in t:
+        return "file_not_found"
+    if "not inside a" in t and "repository" in t:
+        return "wrong_context"
+    if "not a git repository" in t:
+        return "wrong_context"
+    m = re.search(r"exit code (\d+)", t)
+    if m:
+        return "git_error" if int(m.group(1)) == 128 else "bash_nonzero"
+    return "tool_use_error"
+
+
 def extract_session_data(path: Path) -> dict:
     session = {
         "path": str(path),
@@ -168,10 +192,13 @@ def extract_session_data(path: Path) -> dict:
         "session_id": path.stem,
         "user_messages": [],
         "hook_errors": [],
+        "tool_failures": [],
         "timestamps": [],
     }
 
     last_assistant: str | None = None
+    # Maps tool_use id → tool name; populated from assistant turns, consumed in user turns.
+    pending_tool_uses: dict[str, str] = {}
 
     with open(path, encoding="utf-8", errors="ignore") as f:
         for line in f:
@@ -189,13 +216,35 @@ def extract_session_data(path: Path) -> dict:
                 session["timestamps"].append(ts)
 
             if t == "assistant":
-                content = _join_text_content(d.get("message", {}).get("content", ""))
+                raw = d.get("message", {}).get("content", "")
+                if isinstance(raw, list):
+                    for block in raw:
+                        if isinstance(block, dict) and block.get("type") == "tool_use":
+                            pending_tool_uses[block["id"]] = block.get("name", "?")
+                content = _join_text_content(raw)
                 if content:
                     # Keep a short snippet — enough to understand what Claude did
                     last_assistant = " ".join(content.split())[:300]
 
             elif t == "user":
-                content = _join_text_content(d.get("message", {}).get("content", ""))
+                raw = d.get("message", {}).get("content", "")
+                if isinstance(raw, list):
+                    for block in raw:
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") == "tool_result" and block.get("is_error"):
+                            tool_name = pending_tool_uses.get(block.get("tool_use_id", ""), "?")
+                            inner = block.get("content", [])
+                            if isinstance(inner, list):
+                                error_text = " ".join(c.get("text", "") for c in inner if isinstance(c, dict))
+                            else:
+                                error_text = str(inner)
+                            session["tool_failures"].append({
+                                "tool": tool_name,
+                                "error_category": classify_tool_error(tool_name, error_text),
+                                "error_text": error_text[:300],
+                            })
+                content = _join_text_content(raw)
                 if content and not is_noise(content):
                     session["user_messages"].append({
                         "text": content,
@@ -308,6 +357,7 @@ def analyze(sessions: list[dict]) -> dict:
         "slow_start_context": [],
         "automation_candidates": [],
         "hook_errors": [],
+        "tool_failures": [],
     }
 
     all_timestamps = []
@@ -345,8 +395,39 @@ def analyze(sessions: list[dict]) -> dict:
         findings["summary"]["date_range"]["latest"] = all_timestamps[-1]
 
     findings["hook_errors"] = _dedupe_hook_errors(findings["hook_errors"])
+    findings["tool_failures"] = _aggregate_tool_failures(sessions)
 
     return findings
+
+
+def _aggregate_tool_failures(sessions: list[dict]) -> list[dict]:
+    groups: dict[tuple, dict] = {}
+    for sess in sessions:
+        for tf in sess.get("tool_failures", []):
+            key = (tf["tool"], tf["error_category"])
+            g = groups.setdefault(key, {
+                "tool": tf["tool"],
+                "error_category": tf["error_category"],
+                "count": 0,
+                "_sessions": set(),
+                "examples": [],
+            })
+            g["count"] += 1
+            g["_sessions"].add(sess["session_id"])
+            if len(g["examples"]) < 3:
+                g["examples"].append(" ".join(tf["error_text"].split()))
+    out = [
+        {
+            "tool": g["tool"],
+            "error_category": g["error_category"],
+            "count": g["count"],
+            "sessions": len(g["_sessions"]),
+            "examples": g["examples"],
+        }
+        for g in groups.values()
+    ]
+    out.sort(key=lambda x: (x["count"], x["sessions"]), reverse=True)
+    return out
 
 
 def _dedupe_hook_errors(errors: list[dict]) -> list[dict]:
@@ -359,7 +440,90 @@ def _dedupe_hook_errors(errors: list[dict]) -> list[dict]:
     return out
 
 
-def print_text_report(findings: dict):
+def _baseline_key(project_filter: str | None) -> str:
+    return project_filter or "global"
+
+
+def load_baseline(project_filter: str | None, path: Path = BASELINE_PATH) -> dict | None:
+    key = _baseline_key(project_filter)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data.get(key)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_baseline(findings: dict, project_filter: str | None, path: Path = BASELINE_PATH):
+    key = _baseline_key(project_filter)
+    try:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        data[key] = {
+            "saved_at": datetime.now(tz=timezone.utc).isoformat(),
+            "sessions_analyzed": findings["summary"]["sessions_analyzed"],
+            "category_totals": {
+                cat: sum(g["count"] for g in findings[cat])
+                for cat in CATEGORY_SCORE_KEY
+            },
+            "hook_error_count": len(findings["hook_errors"]),
+            "tool_failure_count": sum(g["count"] for g in findings.get("tool_failures", [])),
+        }
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except OSError:
+        pass  # non-fatal
+
+
+def compute_deltas(findings: dict, baseline: dict | None) -> dict:
+    """Per-category deltas vs a prior baseline. Returns {} when no baseline exists."""
+    if not baseline:
+        return {}
+    deltas = {}
+    prev_totals = baseline.get("category_totals", {})
+    for cat in CATEGORY_SCORE_KEY:
+        current = sum(g["count"] for g in findings[cat])
+        previous = prev_totals.get(cat, 0)
+        diff = current - previous
+        pct = round(100 * diff / previous) if previous else None
+        deltas[cat] = {"current": current, "previous": previous, "delta": diff, "pct_change": pct}
+    current_hooks = len(findings["hook_errors"])
+    prev_hooks = baseline.get("hook_error_count", 0)
+    diff_hooks = current_hooks - prev_hooks
+    deltas["hook_errors"] = {
+        "current": current_hooks,
+        "previous": prev_hooks,
+        "delta": diff_hooks,
+        "pct_change": round(100 * diff_hooks / prev_hooks) if prev_hooks else None,
+    }
+    current_tf = sum(g["count"] for g in findings.get("tool_failures", []))
+    prev_tf = baseline.get("tool_failure_count", 0)
+    diff_tf = current_tf - prev_tf
+    deltas["tool_failures"] = {
+        "current": current_tf,
+        "previous": prev_tf,
+        "delta": diff_tf,
+        "pct_change": round(100 * diff_tf / prev_tf) if prev_tf else None,
+    }
+    return deltas
+
+
+def _fmt_delta(delta: dict | None) -> str:
+    """Return a compact delta suffix, e.g. ', was 30, -27% ↓'."""
+    if not delta:
+        return ""
+    prev = delta["previous"]
+    pct = delta["pct_change"]
+    if pct is None:
+        return f", was {prev}"
+    d = delta["delta"]
+    arrow = "↓" if d < 0 else "↑" if d > 0 else "→"
+    sign = "+" if d > 0 else ""
+    return f", was {prev}, {sign}{pct}% {arrow}"
+
+
+def print_text_report(findings: dict, deltas: dict | None = None):
+    deltas = deltas or {}
     s = findings["summary"]
     print("=== Claude Code Efficiency Audit ===")
     print(f"Sessions analyzed: {s['sessions_analyzed']}")
@@ -383,7 +547,8 @@ def print_text_report(findings: dict):
     for title, key, desc in sections:
         groups = findings[key]
         total = sum(g["count"] for g in groups)
-        print(f"--- {title} ({total} matches across {len(groups)} patterns) ---")
+        delta_str = _fmt_delta(deltas.get(key))
+        print(f"--- {title} ({total} matches{delta_str} across {len(groups)} patterns) ---")
         print(f"    {desc}")
         for g in groups[:5]:
             proj = f" ({g['top_project']})" if g.get("top_project") else ""
@@ -392,8 +557,19 @@ def print_text_report(findings: dict):
                 print(f"      ↳ Claude did: {g['preceding_action'][:120]}")
         print()
 
+    if findings.get("tool_failures"):
+        total_tf = sum(g["count"] for g in findings["tool_failures"])
+        delta_str = _fmt_delta(deltas.get("tool_failures"))
+        print(f"--- TOOL CALL FAILURES ({total_tf} total{delta_str}, {len(findings['tool_failures'])} unique patterns) ---")
+        for g in findings["tool_failures"][:5]:
+            print(f"    [{g['tool']}/{g['error_category']}] {g['count']}x / {g['sessions']} sessions")
+            if g["examples"]:
+                print(f"      e.g. {g['examples'][0][:140]}")
+        print()
+
     if findings["hook_errors"]:
-        print(f"--- HOOK ERRORS ({len(findings['hook_errors'])} unique) ---")
+        delta_str = _fmt_delta(deltas.get("hook_errors"))
+        print(f"--- HOOK ERRORS ({len(findings['hook_errors'])} unique{delta_str}) ---")
         for he in findings["hook_errors"][:5]:
             print(f"    [{he['hook_name']}] exit={he['exit_code']} cmd={he['command'][:60]}")
             if he["stderr"]:
@@ -407,22 +583,31 @@ def main():
     files = find_jsonl_files(args.days, args.project)
     print(f"Scanning {len(files)} conversation files from last {args.days} days...", file=sys.stderr)
 
+    baseline = load_baseline(args.project)
+    if baseline:
+        print(f"Baseline found (saved {baseline.get('saved_at', '?')[:10]})", file=sys.stderr)
+
     sessions = []
     for f in files:
         try:
             sess = extract_session_data(f)
-            if sess["user_messages"]:
+            if sess["user_messages"] or sess["tool_failures"] or sess["hook_errors"]:
                 sessions.append(sess)
         except Exception as e:
             print(f"  Warning: could not parse {f}: {e}", file=sys.stderr)
 
     print(f"Parsed {len(sessions)} sessions with user messages", file=sys.stderr)
     findings = analyze(sessions)
+    deltas = compute_deltas(findings, baseline)
 
     if args.output == "json":
+        findings["deltas"] = deltas
         print(json.dumps(findings, indent=2, default=str))
     else:
-        print_text_report(findings)
+        print_text_report(findings, deltas)
+
+    save_baseline(findings, args.project)
+    print(f"Baseline saved to {BASELINE_PATH}", file=sys.stderr)
 
 
 if __name__ == "__main__":

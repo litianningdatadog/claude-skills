@@ -331,5 +331,288 @@ class RecurrenceTests(unittest.TestCase):
         self.assertEqual(total, 3)
 
 
+def tool_use_block(id: str, name: str) -> dict:
+    return {"type": "tool_use", "id": id, "name": name, "input": {}}
+
+
+def tool_result_error(tool_use_id: str, text: str) -> dict:
+    return {
+        "type": "tool_result",
+        "tool_use_id": tool_use_id,
+        "is_error": True,
+        "content": [{"type": "text", "text": text}],
+    }
+
+
+def assistant_with_tool_use(tool_id: str, tool_name: str) -> dict:
+    return {
+        "type": "assistant",
+        "timestamp": "2026-06-01T00:00:00Z",
+        "message": {"content": [tool_use_block(tool_id, tool_name)]},
+    }
+
+
+def user_with_tool_result_error(tool_use_id: str, error_text: str) -> dict:
+    return {
+        "type": "user",
+        "timestamp": "2026-06-01T00:00:01Z",
+        "message": {"content": [tool_result_error(tool_use_id, error_text)]},
+    }
+
+
+class ToolFailureExtractionTests(unittest.TestCase):
+    def test_unread_write_error_detected(self):
+        path = write_session([
+            assistant_with_tool_use("id1", "Edit"),
+            user_with_tool_result_error("id1", "<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(len(sess["tool_failures"]), 1)
+        tf = sess["tool_failures"][0]
+        self.assertEqual(tf["tool"], "Edit")
+        self.assertEqual(tf["error_category"], "unread_write")
+
+    def test_bash_file_not_found_classified(self):
+        path = write_session([
+            assistant_with_tool_use("id2", "Bash"),
+            user_with_tool_result_error("id2", "Exit code 128\nfatal: pathspec 'foo/bar.md' did not match any files"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"][0]["error_category"], "file_not_found")
+
+    def test_bash_wrong_context_classified(self):
+        path = write_session([
+            assistant_with_tool_use("id3", "Bash"),
+            user_with_tool_result_error("id3", "Exit code 1\nError: Current directory is not inside a DataDog repository"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"][0]["error_category"], "wrong_context")
+
+    def test_bash_nonzero_generic_classified(self):
+        path = write_session([
+            assistant_with_tool_use("id4", "Bash"),
+            user_with_tool_result_error("id4", "Exit code 1\nsome random error"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"][0]["error_category"], "bash_nonzero")
+
+    def test_tool_name_resolved_from_tool_use(self):
+        path = write_session([
+            assistant_with_tool_use("abc123", "Write"),
+            user_with_tool_result_error("abc123", "<tool_use_error>File has not been read yet.</tool_use_error>"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"][0]["tool"], "Write")
+
+    def test_successful_tool_result_not_counted(self):
+        path = write_session([
+            assistant_with_tool_use("id5", "Bash"),
+            {
+                "type": "user",
+                "timestamp": "2026-06-01T00:00:01Z",
+                "message": {"content": [{"type": "tool_result", "tool_use_id": "id5", "content": [{"type": "text", "text": "ok"}]}]},
+            },
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"], [])
+
+    def test_tool_failures_aggregated_across_sessions(self):
+        def make_session():
+            return write_session([
+                assistant_with_tool_use("x1", "Edit"),
+                user_with_tool_result_error("x1", "<tool_use_error>File has not been read yet.</tool_use_error>"),
+            ])
+        sessions = [ac.extract_session_data(make_session()) for _ in range(3)]
+        findings = ac.analyze(sessions)
+        self.assertEqual(len(findings["tool_failures"]), 1)
+        top = findings["tool_failures"][0]
+        self.assertEqual(top["tool"], "Edit")
+        self.assertEqual(top["error_category"], "unread_write")
+        self.assertEqual(top["count"], 3)
+        self.assertEqual(top["sessions"], 3)
+
+    def test_multiple_failure_categories_sorted_by_count(self):
+        sessions = []
+        # 3x unread_write
+        for _ in range(3):
+            sessions.append(ac.extract_session_data(write_session([
+                assistant_with_tool_use("u1", "Edit"),
+                user_with_tool_result_error("u1", "File has not been read yet."),
+            ])))
+        # 1x file_not_found
+        sessions.append(ac.extract_session_data(write_session([
+            assistant_with_tool_use("u2", "Bash"),
+            user_with_tool_result_error("u2", "Exit code 128\nfatal: pathspec 'x' did not match any files"),
+        ])))
+        findings = ac.analyze(sessions)
+        self.assertGreaterEqual(findings["tool_failures"][0]["count"], findings["tool_failures"][1]["count"])
+
+    def test_tool_failure_example_is_single_line(self):
+        # Multi-line error text (e.g. test runner output) must be collapsed so it
+        # does not break the text report layout.
+        multiline_error = "Exit code 1\n..EEEE.F..\n======\nERROR: test_compute_deltas"
+        path = write_session([
+            assistant_with_tool_use("id9", "Bash"),
+            user_with_tool_result_error("id9", multiline_error),
+        ])
+        sessions = [ac.extract_session_data(path)]
+        findings = ac.analyze(sessions)
+        example = findings["tool_failures"][0]["examples"][0]
+        self.assertNotIn("\n", example)
+        self.assertNotIn("  ", example)
+
+    def test_tool_unknown_when_id_not_matched(self):
+        # tool_result references an ID that never appeared in a tool_use block
+        path = write_session([
+            user_with_tool_result_error("unknown-id", "some error"),
+        ])
+        sess = ac.extract_session_data(path)
+        self.assertEqual(sess["tool_failures"][0]["tool"], "?")
+
+
+    def test_tool_only_session_included_in_analysis(self):
+        # A session with tool failures but no user messages must not be dropped.
+        # Subagent sessions often have only tool calls with no conversational input.
+        path = write_session([
+            assistant_with_tool_use("id1", "Edit"),
+            user_with_tool_result_error("id1", "<tool_use_error>File has not been read yet.</tool_use_error>"),
+        ])
+        sessions = [ac.extract_session_data(path)]
+        # Verify extract_session_data captures the failure even with no user_messages
+        self.assertEqual(len(sessions[0]["tool_failures"]), 1)
+        self.assertEqual(sessions[0]["user_messages"], [])
+        # Verify analyze() includes it (simulate the main() guard)
+        included = [s for s in sessions if s["user_messages"] or s["tool_failures"] or s["hook_errors"]]
+        self.assertEqual(len(included), 1)
+        findings = ac.analyze(included)
+        self.assertEqual(findings["tool_failures"][0]["count"], 1)
+
+
+class ClassifyToolErrorTests(unittest.TestCase):
+    def test_unread_write(self):
+        self.assertEqual(ac.classify_tool_error("Edit", "File has not been read yet. Read it first."), "unread_write")
+
+    def test_file_not_found_pathspec(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "fatal: pathspec 'x' did not match any files"), "file_not_found")
+
+    def test_file_not_found_no_such_file(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "No such file or directory"), "file_not_found")
+
+    def test_wrong_context(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "Error: not inside a git repository"), "wrong_context")
+
+    def test_permission_denied(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "Permission denied"), "permission_denied")
+
+    def test_git_error_exit_128(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "Exit code 128\nfatal: something"), "git_error")
+
+    def test_bash_nonzero(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "Exit code 1\nsome error"), "bash_nonzero")
+
+    def test_generic_fallback(self):
+        self.assertEqual(ac.classify_tool_error("Bash", "something completely unknown"), "tool_use_error")
+
+
+class DeltaTrackingTests(unittest.TestCase):
+    def _findings_with_counts(self, corrections=0, missing=0, slow=0, automation=0, hooks=0):
+        """Build a minimal findings dict with the given category totals."""
+        def _groups(n):
+            return [{"count": n, "sessions": 1, "pattern": "x", "top_project": "", "examples": [], "preceding_action": None}] if n else []
+        findings = {
+            "summary": {"sessions_analyzed": 1, "total_user_messages": 1, "date_range": {"earliest": None, "latest": None}, "projects": {}},
+            "corrections": _groups(corrections),
+            "missing_context": _groups(missing),
+            "slow_start_context": _groups(slow),
+            "automation_candidates": _groups(automation),
+            "hook_errors": [{"hook_name": "h", "exit_code": 1, "stderr": "", "command": "c"}] * hooks,
+        }
+        return findings
+
+    def test_compute_deltas_no_baseline_returns_empty(self):
+        findings = self._findings_with_counts(corrections=5)
+        self.assertEqual(ac.compute_deltas(findings, None), {})
+
+    def test_compute_deltas_improvement(self):
+        findings = self._findings_with_counts(corrections=22)
+        baseline = {"category_totals": {"corrections": 30, "missing_context": 0, "slow_start_context": 0, "automation_candidates": 0}, "hook_error_count": 0}
+        deltas = ac.compute_deltas(findings, baseline)
+        d = deltas["corrections"]
+        self.assertEqual(d["current"], 22)
+        self.assertEqual(d["previous"], 30)
+        self.assertEqual(d["delta"], -8)
+        self.assertEqual(d["pct_change"], -27)
+
+    def test_compute_deltas_regression(self):
+        findings = self._findings_with_counts(corrections=10)
+        baseline = {"category_totals": {"corrections": 5, "missing_context": 0, "slow_start_context": 0, "automation_candidates": 0}, "hook_error_count": 0}
+        deltas = ac.compute_deltas(findings, baseline)
+        d = deltas["corrections"]
+        self.assertEqual(d["delta"], 5)
+        self.assertEqual(d["pct_change"], 100)
+
+    def test_compute_deltas_no_previous_pct_is_none(self):
+        findings = self._findings_with_counts(corrections=3)
+        baseline = {"category_totals": {"corrections": 0, "missing_context": 0, "slow_start_context": 0, "automation_candidates": 0}, "hook_error_count": 0}
+        deltas = ac.compute_deltas(findings, baseline)
+        self.assertIsNone(deltas["corrections"]["pct_change"])
+
+    def test_fmt_delta_improvement(self):
+        d = {"current": 22, "previous": 30, "delta": -8, "pct_change": -27}
+        self.assertEqual(ac._fmt_delta(d), ", was 30, -27% ↓")
+
+    def test_fmt_delta_regression(self):
+        d = {"current": 10, "previous": 5, "delta": 5, "pct_change": 100}
+        self.assertEqual(ac._fmt_delta(d), ", was 5, +100% ↑")
+
+    def test_fmt_delta_no_change(self):
+        d = {"current": 5, "previous": 5, "delta": 0, "pct_change": 0}
+        self.assertEqual(ac._fmt_delta(d), ", was 5, 0% →")
+
+    def test_fmt_delta_none_returns_empty(self):
+        self.assertEqual(ac._fmt_delta(None), "")
+
+    def test_save_and_load_baseline_roundtrip(self):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp_path = Path(f.name)
+        try:
+            findings = self._findings_with_counts(corrections=7, hooks=2)
+            ac.save_baseline(findings, "myproject", path=tmp_path)
+            loaded = ac.load_baseline("myproject", path=tmp_path)
+            self.assertIsNotNone(loaded)
+            self.assertEqual(loaded["category_totals"]["corrections"], 7)
+            self.assertEqual(loaded["hook_error_count"], 2)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_save_baseline_multiple_keys(self):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp_path = Path(f.name)
+        try:
+            findings_a = self._findings_with_counts(corrections=3)
+            findings_b = self._findings_with_counts(corrections=9)
+            ac.save_baseline(findings_a, "proj-a", path=tmp_path)
+            ac.save_baseline(findings_b, "proj-b", path=tmp_path)
+            # Both keys survive independently
+            self.assertEqual(ac.load_baseline("proj-a", path=tmp_path)["category_totals"]["corrections"], 3)
+            self.assertEqual(ac.load_baseline("proj-b", path=tmp_path)["category_totals"]["corrections"], 9)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    def test_load_baseline_missing_file_returns_none(self):
+        self.assertIsNone(ac.load_baseline("x", path=Path("/tmp/nonexistent-baseline-xyz.json")))
+
+    def test_load_baseline_global_key(self):
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            tmp_path = Path(f.name)
+        try:
+            findings = self._findings_with_counts(corrections=1)
+            ac.save_baseline(findings, None, path=tmp_path)
+            loaded = ac.load_baseline(None, path=tmp_path)
+            self.assertIsNotNone(loaded)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     unittest.main()

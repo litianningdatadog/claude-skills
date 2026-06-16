@@ -9,15 +9,16 @@ automation candidates, and failing hooks — then proposes and applies concrete 
 
 ## How it works
 
-Pipeline: **analyze + score files → draft rules → report → plan → act → verify → (opt-in) Karpathy merge**.
+Pipeline: **analyze + score files → synthesize rules → report → plan → act → verify → (opt-in) Karpathy merge**.
 Phase 1 runs three checks: a terminal-title setup check, `analyze_conversations.py` scanning
-transcripts for friction patterns, and `score_efficiency.py` scoring your `CLAUDE.md` /
-`MEMORY.md` on a 0.0–1.0 efficiency scale (files ≥ 5000 lines are flagged as Critical Context
-Blockers). Claude drafts concrete proposed `CLAUDE.md` rules for the top correction groups,
-**always asking you to confirm the target file** before adding anything to the checklist
-(global `~/.claude/CLAUDE.md` or project-specific — never routed silently). Changes are
-applied following a strict **Plan → Act → Verify** cycle. Phase 5 offers an opt-in smart
-merge of
+transcripts for friction patterns (corrections, missing context, tool-call failures, automation
+candidates), and `score_efficiency.py` scoring your `CLAUDE.md` / `MEMORY.md` on a 0.0–1.0
+efficiency scale (files ≥ 5000 lines are flagged as Critical Context Blockers). `synthesize_findings.py`
+then pipes the findings through the Claude CLI to produce pre-drafted CLAUDE.md rules ranked by
+estimated token savings — skipping the manual Phase 2 synthesis step when it succeeds. Rules are
+written via `apply_rules.py` using idempotent marker blocks (`<!-- efficiency-audit:start/end -->`),
+so re-running the audit replaces rules in-place rather than accumulating duplicates. Changes are
+applied following a strict **Plan → Act → Verify** cycle. Phase 5 offers an opt-in smart merge of
 [Karpathy-inspired behavioral guidelines](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md)
 into your `CLAUDE.md` (deduplicated against your existing rules — not blindly appended).
 
@@ -41,28 +42,47 @@ Once installed, trigger it in any Claude Code session with phrases like
 
 Updates are applied automatically — run `/plugin marketplace update` to pull the latest version.
 
-## Running the analyzer directly
+## Running the scripts directly
 
-The script is a standalone CLI — useful for previewing findings without invoking the skill.
+### Analyzer
 
 ```bash
 # Current project, last 30 days, human-readable preview:
 python3 scripts/analyze_conversations.py \
   --days 30 --project "$(basename "$PWD")" --output text 2>/dev/null
 
-# All projects, JSON (what the skill consumes):
+# All projects, JSON (pipe to synthesize_findings.py):
 python3 scripts/analyze_conversations.py --days 30 --output json 2>/dev/null
 ```
 
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--days N` | `30` | Only scan transcripts modified in the last N days. |
-| `--project P` | _(all)_ | Restrict to a project. Accepts a real path (`/Users/me/DataDog/foo`), the folder name (`foo`), or the encoded dir name — matched tolerant of the `/`/`.`→`-` encoding Claude Code uses for transcript dirs. |
-| `--output json\|text` | `json` | `json` for the skill to consume; `text` for a quick human preview. |
+| `--project P` | _(all)_ | Restrict to a project. Accepts a real path, the folder name, or the encoded dir name — matched tolerant of the `/`/`.`→`-` encoding Claude Code uses. |
+| `--output json\|text` | `json` | `json` for skill/synthesis consumption; `text` for a quick human preview. |
 
-The `--output text` mode automatically saves a baseline to `~/.claude/efficiency-audit-baseline.json`
-after each run and shows deltas on the next run — e.g. `CORRECTIONS (22 matches, was 30, -27% ↓)`.
-This lets you measure whether CLAUDE.md fixes are actually reducing friction over time.
+After every run a baseline is saved to `~/.claude/efficiency-audit-baseline.json` (keyed by
+project filter). Subsequent runs show deltas inline — e.g. `CORRECTIONS (22 matches, was 30, -27% ↓)`.
+
+### LLM synthesis
+
+```bash
+python3 scripts/analyze_conversations.py --days 30 --output json 2>/dev/null \
+| python3 scripts/synthesize_findings.py
+```
+
+Produces a ranked JSON array of `{proposed_rule, estimated_tokens_saved, scope, evidence, confidence}`.
+Use `--dry-run` to print the digest sent to the LLM without making a call; `--model` to override the model.
+
+### Applying rules (idempotent marker blocks)
+
+```bash
+python3 scripts/apply_rules.py --read ~/.claude/CLAUDE.md          # print existing block
+python3 scripts/apply_rules.py --dry-run ~/.claude/CLAUDE.md '["r1"]'  # preview diff
+python3 scripts/apply_rules.py ~/.claude/CLAUDE.md '["r1", "r2"]'  # write
+```
+
+Writes into a `<!-- efficiency-audit:start/end -->` block. Re-running replaces the block in-place — no duplicates.
 
 ### Scoring CLAUDE.md / MEMORY.md for bloat
 
@@ -101,6 +121,11 @@ each a list of groups sorted by frequency. Each group carries:
 | `examples` | Up to 3 representative messages (whitespace-collapsed) |
 | `preceding_action` | What Claude said immediately before the correction (`corrections` only) — the causal trigger used to draft targeted CLAUDE.md rules |
 
+`tool_failures` lists tool-call errors extracted from `tool_use`/`tool_result` pairs, grouped
+by `(tool, error_category)`. Categories: `unread_write` (Edit/Write without prior Read),
+`file_not_found`, `wrong_context`, `git_error` (exit 128), `bash_nonzero`, `permission_denied`,
+`user_interrupted`, `tool_use_error` (generic).
+
 `terminal_title_skill_missing` and `terminal_title_not_configured` surface terminal-title
 setup gaps (see [`references/terminal-title-check.md`](references/terminal-title-check.md)
 for detection logic and known limitations with conflicting plugins).
@@ -109,6 +134,10 @@ for detection logic and known limitations with conflicting plugins).
 (context-compaction notices, slash-command and skill-body injections, security-review
 boilerplate, context-injection headers, and tool-output pastes) is filtered out during
 extraction — every group in the output represents real user input.
+
+`deltas` compares current counts to the previous baseline keyed by project filter, showing
+per-category `{current, previous, delta, pct_change}`. Also included in the `--output text`
+inline headers.
 
 ## Troubleshooting
 
@@ -129,7 +158,8 @@ session) to confirm no *new* failures appear.
 Standard-library `unittest`, no dependencies:
 
 ```bash
-cd scripts && python3 -m unittest test_analyze_conversations test_score_efficiency
+cd scripts && python3 -m unittest test_analyze_conversations test_score_efficiency \
+  test_synthesize_findings test_apply_rules
 ```
 
 ## Files
@@ -151,9 +181,13 @@ efficiency-audit/
 │   ├── recipe-book.md                    # 4-step CLAUDE.md refactor procedure — loaded when >200 lines
 │   └── terminal-title-check.md           # terminal-title detection, conflict check, hook proposal
 └── scripts/
-    ├── analyze_conversations.py          # transcript analyzer CLI
+    ├── analyze_conversations.py          # transcript analyzer CLI (patterns + tool failures + deltas)
+    ├── apply_rules.py                    # idempotent marker-block writer for CLAUDE.md rules
     ├── resolve_memory_path.py            # resolves project MEMORY.md path (git root + autoMemoryDirectory)
     ├── score_efficiency.py               # file byte-efficiency scorer (piecewise linear)
+    ├── synthesize_findings.py            # LLM synthesis: findings JSON → ranked CLAUDE.md rules
     ├── test_analyze_conversations.py     # unittest suite
-    └── test_score_efficiency.py          # unittest suite for scorer
+    ├── test_apply_rules.py               # unittest suite for apply_rules
+    ├── test_score_efficiency.py          # unittest suite for scorer
+    └── test_synthesize_findings.py       # unittest suite for synthesize_findings
 ```
