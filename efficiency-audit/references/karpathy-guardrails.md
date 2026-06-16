@@ -2,9 +2,14 @@
 
 Source: https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md
 
-The four principles (Think Before Coding, Simplicity First, Surgical Changes,
-Goal-Driven Execution) govern every phase of the audit — not just Phase 5.
-The merge procedure fetches their full text live from the source URL above.
+The four principles govern every phase of the audit — not just Phase 5.
+
+1. **Think Before Coding** — State assumptions before acting; stop and ask when ambiguous; flag with `[ASSUMED: ...]`.
+2. **Simplicity First** — Write only what was asked; no speculative features, extra abstraction, or configurability.
+3. **Surgical Changes** — Touch only what the task requires; note but don't fix unrelated issues.
+4. **Goal-Driven Execution** — Define a verifiable outcome before acting; don't declare complete until it can be observed.
+
+The merge procedure (Phase 5) fetches the full upstream text from the source URL above for diffing against the user's CLAUDE.md.
 
 ## Flagging violations
 
