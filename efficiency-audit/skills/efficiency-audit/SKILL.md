@@ -70,7 +70,7 @@ python3 "${PLUGIN_ROOT}/scripts/apply_rules.py" <path> '["r1", "r2"]'     # writ
 ## Phase 5: Karpathy Guardrails (opt-in)
 
 Surface the offer only if the evidence threshold in `references/karpathy-guardrails.md` is met; skip entirely if the user declines.
-If accepted, flag violations as `[GUARDRAIL: ...]` throughout the remaining phases.
+If accepted, apply the guardrail checks to the Phase 4 apply plan before executing it — this phase governs the *apply decision*, not the preceding analysis or report.
 
 ## Utilities
 
