@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 
+import re
+
 import qn
 import notes_store as ns
 
@@ -114,6 +116,46 @@ class CLITests(unittest.TestCase):
         code, out = self.run_cli(["search", "postgres"])
         self.assertEqual(code, 0)
         self.assertIn("postgres", out.lower())
+
+    def test_show_displays_local_time_not_utc(self):
+        """Created/Updated/Due must not appear as raw UTC ISO strings."""
+        self.run_cli(["pgbouncer", "pool", "size"])
+        nid = ns.list_notes(self.home)[0]["id"]
+        self.run_cli(["update", nid, "--due", "2026-06-16T20:00:00Z"])
+        code, out = self.run_cli(["show", nid])
+        self.assertEqual(code, 0)
+        created_val = out.split("Created:")[1].split("\n")[0]
+        due_val = out.split("Due:")[1].split("\n")[0]
+        # Raw ISO date-time separator (digit T digit) must not appear
+        self.assertIsNone(re.search(r'\d{2}T\d{2}', created_val),
+                          "Created should not contain raw ISO 'T' separator")
+        # Raw ISO date-time separator and UTC 'Z' suffix must not appear
+        self.assertIsNone(re.search(r'\d{2}T\d{2}', due_val),
+                          "Due should not contain raw ISO 'T' separator")
+        self.assertFalse(due_val.strip().endswith("Z"),
+                         "Due should not end with raw UTC 'Z' suffix")
+
+
+class DisplayTimeTests(unittest.TestCase):
+    def test_utc_string_converts_to_local(self):
+        result = qn._display_time("2026-06-16T20:00:00Z")
+        # Raw ISO date-time separator must not appear
+        self.assertIsNone(re.search(r'\d{2}T\d{2}', result),
+                          "Should not contain raw ISO 'T' separator")
+        # Raw UTC 'Z' suffix must not appear
+        self.assertFalse(result.strip().endswith("Z"),
+                         "Should not end with raw UTC 'Z' suffix")
+        # Should be a non-empty string
+        self.assertTrue(result)
+
+    def test_none_returns_none(self):
+        self.assertIsNone(qn._display_time(None))
+
+    def test_empty_string_returns_empty(self):
+        self.assertEqual(qn._display_time(""), "")
+
+    def test_malformed_string_returns_as_is(self):
+        self.assertEqual(qn._display_time("not-a-date"), "not-a-date")
 
 
 if __name__ == "__main__":

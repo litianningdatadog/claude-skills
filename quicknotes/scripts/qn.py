@@ -19,6 +19,7 @@ Notes live under $QUICKNOTES_HOME or ~/.quicknotes. Completing a note removes it
 """
 
 import sys
+from datetime import datetime
 
 import notes_store as ns
 
@@ -45,10 +46,21 @@ def _extract_opts(words, allowed):
     return opts, rest
 
 
+def _display_time(iso_str):
+    """Parse a stored UTC ISO timestamp and return it formatted in local time."""
+    if not iso_str:
+        return iso_str
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    except (ValueError, AttributeError):
+        return iso_str
+
+
 def _fmt(note):
     tags = (" #" + " #".join(note["tags"])) if note.get("tags") else ""
     pri = f" !{note['priority']}" if note.get("priority") else ""
-    due = f" due:{note['due']}" if note.get("due") else ""
+    due = f" due:{_display_time(note['due'])}" if note.get("due") else ""
     return f"{note['id']}  {note.get('title') or '(untitled)'}" \
            f"  ({note.get('project')}){tags}{pri}{due}"
 
@@ -110,9 +122,9 @@ def _detail(note):
         ("Id", note.get("id")),
         ("Title", note.get("title") or "(untitled)"),
         ("Priority", note.get("priority") or "—"),
-        ("Due", note.get("due") or "—"),
-        ("Created", note.get("created")),
-        ("Updated", note.get("updated")),
+        ("Due", _display_time(note.get("due")) or "—"),
+        ("Created", _display_time(note.get("created")) or "—"),
+        ("Updated", _display_time(note.get("updated")) or "—"),
         ("Project", note.get("project") or "—"),
         ("Branch", note.get("branch") or "—"),
         ("Cwd", note.get("cwd") or "—"),
