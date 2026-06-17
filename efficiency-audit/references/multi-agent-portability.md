@@ -88,19 +88,19 @@ Database at `~/.local/share/opencode/opencode.db`. Relevant tables:
 
 | Table | Key columns |
 |---|---|
-| `SessionTable` | `id`, `projectID`, `title`, `model`, `tokens`, timestamps |
-| `MessageTable` | `id`, `sessionID`, `info` (full serialized message JSON) |
-| `PartTable` | `id`, `sessionID`, `messageID`, `type`, content fields |
+| `session` | `id`, `project_id`, `title`, `model`, `tokens`, timestamps |
+| `message` | `id`, `session_id`, `info` (full serialized message JSON) |
+| `part` | `id`, `session_id`, `message_id`, `type`, `data` (JSON payload) |
 
 Part `type` discriminator values: `text`, `reasoning`, `file`, `tool`, `step-start`, `step-finish`, `compaction`, `subtask`.
 
-Conversation text lives in `PartTable` rows where `type = 'text'`. Query to extract conversation turns:
+Conversation text lives in `part` rows where `type = 'text'`. The actual content is in the JSON `data` column. Query to extract conversation turns:
 
 ```sql
-SELECT s.title, s.id as session_id, m.id as message_id, p.content
-FROM PartTable p
-JOIN MessageTable m ON p.messageID = m.id
-JOIN SessionTable s ON m.sessionID = s.id
+SELECT s.title, s.id as session_id, m.id as message_id, json_extract(p.data, '$.content') as content
+FROM part p
+JOIN message m ON p.message_id = m.id
+JOIN session s ON m.session_id = s.id
 WHERE p.type = 'text'
 ORDER BY p.rowid;
 ```
